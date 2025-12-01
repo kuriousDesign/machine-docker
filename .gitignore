@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnp
+.pnp.js
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# MongoDB
+data/
+db/
+*.log
+
+# MQTT Broker
+mqtt/data/
+mqtt/config/
+mosquitto/data/
+mosquitto/config/
+
+# Certificates & Keys
+certs/
+keys/
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+!certs/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build
+dist/
+build/
+.next/
+
+# OS
+Thumbs.db
+.env.example.local
