@@ -1,30 +1,29 @@
-version: "3.9"
-
 services:
-  ui:
-    build:
-      context: ../machine-ui-heroui-shadcn
-    ports:
-      - "3000:3000"
-    env_file:
-      - ./env/ui.env
-    environment:
-      NEXT_PUBLIC_MQTT_URL: "ws://mqtt:9001"
-      NEXT_PUBLIC_MQTT_USERNAME: "${MQTT_USERNAME}"
-      NEXT_PUBLIC_MQTT_PASSWORD: "${MQTT_PASSWORD}"
-    depends_on:
-      - mqtt
-    restart: unless-stopped
+  # ui:
+  #   build:
+  #     context: ./machine-ui-heroui-shadcn
+  #   ports:
+  #     - "3000:3000"
+  #   env_file:
+  #     - ./env/ui.env
+  #   #environment:
+  #     # NEXT_PUBLIC_MQTT_URL: "ws://mqtt:9001"
+  #     # NEXT_PUBLIC_MQTT_USERNAME: "${MQTT_USERNAME}"
+  #     # NEXT_PUBLIC_MQTT_PASSWORD: "${MQTT_PASSWORD}"
+  #   depends_on:
+  #     - mqtt
+  #   restart: unless-stopped
 
   bridge:
     build:
-      context: ../machine-bridge
+      context: ./machine-bridge
+      dockerfile: .devcontainer/Dockerfile
     env_file:
       - ./env/bridge.env
-    environment:
-      MQTT_URL: "mqtt://mqtt:1883"
-      OPCUA_ENDPOINT: "${OPCUA_ENDPOINT}"
-      OPCUA_SECURITY_MODE: "None"
+    #environment:
+      # MQTT_URL: "mqtt://mqtt:1883"
+      # OPCUA_ENDPOINT: "${OPCUA_ENDPOINT}"
+      # OPCUA_SECURITY_MODE: "None"
     depends_on:
       - mqtt
     restart: unless-stopped
@@ -41,18 +40,20 @@ services:
   #     - mqtt
   #   restart: unless-stopped
 
-  machine-vision:
-    build:
-      context: ../machine-vision
-    env_file:
-      - ./env/vision.env
-    volumes:
-      - ./vision-data:/data
-    devices:
-      - "/dev/video0:/dev/video0"   # optional; only if you want host device passed through
-    depends_on:
-      - broker
-      - mongodb
+  # vision:
+  #   build:
+  #     context: ./machine-vision
+  #     dockerfile: .devcontainer/Dockerfile
+  #   env_file:
+  #     - ./env/vision.env
+  #   volumes:
+  #     - ./vision-data:/data
+  #   devices:
+  #     - "/dev/video0:/dev/video0"
+  #     - "/dev/video1:/dev/video1"
+  #   depends_on:
+  #     - mqtt
+  #     - mongodb
 
   mqtt:
     image: eclipse-mosquitto:2
@@ -72,7 +73,7 @@ services:
     container_name: mongo
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_ROOT_PASSWORD: admin
     volumes:
       - mongo_data:/data/db
     ports:
