@@ -1,33 +1,49 @@
 services:
-  # ui:
-  #   build:
-  #     context: ./machine-ui-heroui-shadcn
-  #   ports:
-  #     - "3000:3000"
-  #   env_file:
-  #     - ./env/ui.env
-  #   #environment:
-  #     # NEXT_PUBLIC_MQTT_URL: "ws://mqtt:9001"
-  #     # NEXT_PUBLIC_MQTT_USERNAME: "${MQTT_USERNAME}"
-  #     # NEXT_PUBLIC_MQTT_PASSWORD: "${MQTT_PASSWORD}"
-  #   depends_on:
-  #     - mqtt
-  #   restart: unless-stopped
+  ui:
+    build:
+      context: ./machine-ui-heroui-shadcn
+      dockerfile: .devcontainer/Dockerfile
+    container_name: machine-ui
+    # ports:
+    #   - "3000:3000"
+    env_file:
+      - ./env/ui.env
+    #environment:
+      # NEXT_PUBLIC_MQTT_URL: "ws://mqtt:9001"
+      # NEXT_PUBLIC_MQTT_USERNAME: "${MQTT_USERNAME}"
+      # NEXT_PUBLIC_MQTT_PASSWORD: "${MQTT_PASSWORD}"
+    network_mode: host
+    depends_on:
+      - mqtt
+    restart: unless-stopped
 
   bridge:
     build:
       context: ./machine-bridge
       dockerfile: .devcontainer/Dockerfile
+    
+    container_name: machine-bridge
+
     env_file:
       - ./env/bridge.env
-    #environment:
-      # MQTT_URL: "mqtt://mqtt:1883"
-      # OPCUA_ENDPOINT: "${OPCUA_ENDPOINT}"
-      # OPCUA_SECURITY_MODE: "None"
+
     depends_on:
       - mqtt
     restart: unless-stopped
     # (No ports exposed — this is an internal bridge only)
+
+    network_mode: host 
+      
+    # networks:
+    #   - app-network
+    volumes:
+    # Use an anonymous volume for node_modules to avoid issues with host OS mismatches
+          # Mount the source code directory from host to container workspace
+      - ./machine-bridge:/workspaces/machine-bridge
+      # --- ADDED: Create a Docker volume specifically for node_modules ---
+      # This ensures the 'npm install' run during the build is used/persisted
+      - /workspaces/machine-bridge/node_modules
+
 
   # ros2node:
   #   build:
@@ -59,10 +75,11 @@ services:
     image: eclipse-mosquitto:2
     container_name: mqtt
     restart: unless-stopped
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-      - "9002:9002"
+    network_mode: host 
+    # ports:
+    #   - "1883:1883"
+    #   - "9001:9001"
+    #   - "9002:9002"
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
@@ -74,10 +91,11 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: admin
+    network_mode: host 
     volumes:
       - mongo_data:/data/db
-    ports:
-      - "27017:27017"
+    # ports:
+    #   - "27017:27017"
     restart: unless-stopped
 
 volumes:
