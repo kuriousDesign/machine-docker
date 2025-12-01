@@ -21,9 +21,9 @@ db/
 
 # MQTT Broker
 mqtt/data/
-mqtt/config/
+#mqtt/config/
 mosquitto/data/
-mosquitto/config/
+#mosquitto/config/
 
 # Certificates & Keys
 certs/
