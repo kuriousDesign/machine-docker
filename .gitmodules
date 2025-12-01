@@ -1,0 +1,9 @@
+[submodule "machine-bridge"]
+	path = machine-bridge
+	url = https://github.com/kuriousDesign/machine-bridge.git
+[submodule "machine-ui-heroui-shadcn"]
+	path = machine-ui-heroui-shadcn
+	url = https://github.com/kuriousDesign/machine-ui-heroui-shadcn.git
+[submodule "machine-vision"]
+	path = machine-vision
+	url = https://github.com/kuriousDesign/machine-vision.git
