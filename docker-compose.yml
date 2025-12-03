@@ -44,18 +44,6 @@ services:
       # This ensures the 'npm install' run during the build is used/persisted
       - /workspaces/machine-bridge/node_modules
 
-
-  # ros2node:
-  #   build:
-  #     context: ./services/ros2node
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     MQTT_URL: "mqtt://mqtt:1883"
-  #   depends_on:
-  #     - mqtt
-  #   restart: unless-stopped
-
   vision:
     build:
       context: ./machine-vision
@@ -69,6 +57,7 @@ services:
     devices:
       - "/dev/video0:/dev/video0"
       - "/dev/video1:/dev/video1"
+      - "/dev/video2:/dev/video2"
     depends_on:
       - mqtt
       - mongodb
@@ -99,6 +88,17 @@ services:
     # ports:
     #   - "27017:27017"
     restart: unless-stopped
+
+  # ros2node:
+  #   build:
+  #     context: ./services/ros2node
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     MQTT_URL: "mqtt://mqtt:1883"
+  #   depends_on:
+  #     - mqtt
+  #   restart: unless-stopped
 
 volumes:
   mongo_data:
