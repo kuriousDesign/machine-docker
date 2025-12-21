@@ -44,23 +44,23 @@ services:
       # This ensures the 'npm install' run during the build is used/persisted
       - /workspaces/machine-bridge/node_modules
 
-  # vision:
-  #   build:
-  #     context: ./machine-vision
-  #     dockerfile: .devcontainer/Dockerfile
-  #   container_name: machine-vision
-  #   env_file:
-  #     - ./env/vision.env
-  #   network_mode: host 
-  #   volumes:
-  #     - ./vision-data:/data
-  #   devices:
-  #     - "/dev/video0:/dev/video0"
-  #     - "/dev/video1:/dev/video1"
-  #     - "/dev/video2:/dev/video2"
-  #   depends_on:
-  #     - mqtt
-  #     - mongodb
+  vision:
+    build:
+      context: ./machine-vision
+      dockerfile: .devcontainer/Dockerfile
+    container_name: machine-vision
+    env_file:
+      - ./env/vision.env
+    network_mode: host 
+    volumes:
+      - ./vision-data:/data
+    devices:
+      - "/dev/video0:/dev/video0"
+      - "/dev/video1:/dev/video1"
+      - "/dev/video2:/dev/video2"
+    depends_on:
+      - mqtt
+      - mongodb
 
   mqtt:
     image: eclipse-mosquitto:2
