@@ -16,3 +16,7 @@ user: apollo-admin
 
 ## copy cert to remote ssh on windows
 type $env:USERPROFILE\.ssh\id_rsa.pub | ssh apollo-admin@192.168.70.1 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+
+
+# MONGO DB DATA VOLUME BACKUP
+docker exec -it mongo sh -c 'exec mongodump --archive --gzip' > mongo_backup.gz

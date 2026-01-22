@@ -64,7 +64,7 @@ services:
 
   mongodb:
     image: mongo:7
-    container_name: mongo
+    container_name: mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: admin
