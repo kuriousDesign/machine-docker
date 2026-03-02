@@ -20,3 +20,9 @@ type $env:USERPROFILE\.ssh\id_rsa.pub | ssh apollo-admin@192.168.70.1 "mkdir -p 
 
 # MONGO DB DATA VOLUME BACKUP
 docker exec -it mongo sh -c 'exec mongodump --archive --gzip' > mongo_backup.gz
+
+# RECORDINGS DIRECTORY CREATION
+# Create the directory
+sudo mkdir -p /opt/recordings
+# Give it full permissions so your current user and future Docker containers can write
+sudo chmod 777 /opt/recordings
