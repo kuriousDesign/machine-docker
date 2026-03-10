@@ -1,13 +1,10 @@
 git clone [<repo-url>](https://github.com/kuriousDesign/machine-docker.git) machine-docker
 cd machine-docker
 
-# INSTALL MODULES FRESH
-git submodule update --init --recursive
 
 
 # GET LATEST CODE
-git submodule foreach 'git fetch && git checkout master && git pull origin master'
-
+git submodule update --remote --init --recursive
 
 # RUN ONE SERVICE
 docker compose up -d <service-name>
