@@ -79,6 +79,11 @@ services:
     volumes:
       - mongo_data:/data/db
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
 
 volumes:
   machine-ui-node-modules:
