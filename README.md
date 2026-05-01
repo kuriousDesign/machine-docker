@@ -1,7 +1,8 @@
 git clone [<repo-url>](https://github.com/kuriousDesign/machine-docker.git) machine-docker
 cd machine-docker
 
-
+# MIGHT SETUP EACH DOCKER TO RUN AS USER
+docker run --user "$(id -u):$(id -g)" -v /opt/repos/myrepo:/app ...
 
 # GET LATEST CODE
 git submodule update --remote --init --recursive
@@ -16,7 +17,7 @@ hostname: APO-IPC-00251-01
 user: apollo-admin
 
 ## copy cert to remote ssh on windows
-type $env:USERPROFILE\.ssh\id_rsa.pub | ssh apollo-admin@192.168.70.1 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+type $env:USERPROFILE\.ssh\id_rsa.pub | ssh apollo-admin@10.70.70.50 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 
 
 # MONGO DB DATA VOLUME BACKUP
