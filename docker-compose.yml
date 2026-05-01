@@ -1,4 +1,24 @@
 services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: mqtt
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: admin
+    network_mode: host
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
   ui:
     build:
       context: ./machine-ui-heroui-shadcn
@@ -54,36 +74,7 @@ services:
       - mqtt
       - mongodb
 
-  mqtt:
-    image: eclipse-mosquitto:2
-    container_name: mqtt
-    restart: unless-stopped
-    network_mode: host
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
 
-  mongodb:
-    image: mongo:7
-    container_name: mongodb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: admin
-    network_mode: host
-    volumes:
-      - mongo_data:/data/db
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "3"
 
 volumes:
   machine-ui-node-modules:

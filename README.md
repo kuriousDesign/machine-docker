@@ -1,68 +1,235 @@
-git clone [<repo-url>](https://github.com/kuriousDesign/machine-docker.git) machine-docker
-cd machine-docker
+# IPC Docker Setup
 
-# MIGHT SETUP EACH DOCKER TO RUN AS USER
-docker run --user "$(id -u):$(id -g)" -v /opt/repos/myrepo:/app ...
+This guide documents the setup used on the IPC for Docker-based deployment of this repository on Ubuntu 24.04.
 
-# GET LATEST CODE
+## 1. Prerequisites
+
+1. Install Docker Engine and the Docker Compose plugin on the IPC.
+2. Confirm Docker is available:
+
+```bash
+docker --version
+docker compose version
+```
+
+## 2. Configure GitHub Authentication For `apollo`
+
+1. Generate a dedicated SSH key for the `apollo` account:
+
+```bash
+ssh-keygen -t ed25519 -C "apollo@$(hostname)-github" -f ~/.ssh/id_ed25519_github_apollo -N ""
+```
+
+2. Create or update `~/.ssh/config` so GitHub uses SSH over port 443:
+
+```sshconfig
+Host github.com
+	HostName ssh.github.com
+	Port 443
+	User git
+	IdentityFile ~/.ssh/id_ed25519_github_apollo
+	IdentitiesOnly yes
+```
+
+3. Add `~/.ssh/id_ed25519_github_apollo.pub` to the GitHub account under SSH keys.
+4. Configure Git to rewrite GitHub HTTPS remotes to SSH:
+
+```bash
+git config --global url."git@github.com:".insteadOf https://github.com/
+```
+
+5. Verify GitHub authentication:
+
+```bash
+ssh -T git@github.com
+```
+
+Notes:
+
+- Standard GitHub SSH on port 22 is blocked from this IPC.
+- The `ssh.github.com:443` configuration is required for GitHub access from this machine.
+- This key has no passphrase, so anyone logged in as `apollo` can authenticate as the linked GitHub account.
+
+## 3. Clone The Repository
+
+1. Clone the repo into `/opt/repos`:
+
+```bash
+mkdir -p /opt/repos
+git -C /opt/repos clone https://github.com/kuriousDesign/machine-docker.git
+cd /opt/repos/machine-docker
+```
+
+2. Pull submodules if needed:
+
+```bash
 git submodule update --remote --init --recursive
+```
 
-# RUN ONE SERVICE
-docker compose up -d <service-name>
+## 4. Refresh Docker Group Access
 
+If Docker reports `permission denied` on `/var/run/docker.sock`, the current shell probably has stale group membership.
 
-# REMOTE IPC
-192.168.70.12
-hostname: APO-IPC-00251-01
-user: apollo-admin
+Run:
 
-## copy cert to remote ssh on windows
-type $env:USERPROFILE\.ssh\id_rsa.pub | ssh apollo-admin@10.70.70.50 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+```bash
+newgrp docker
+```
 
+Then re-enter the repo directory:
 
-# MONGO DB DATA VOLUME BACKUP
-docker exec -it mongo sh -c 'exec mongodump --archive --gzip' > mongo_backup.gz
+```bash
+cd /opt/repos/machine-docker
+```
 
-# RECORDINGS DIRECTORY CREATION
-# Create the directory
+If that still does not apply, log out of the `apollo` session and sign back in.
+
+## 5. Prepare Local Directories
+
+1. Create the recordings directory used by the stack:
+
+```bash
 sudo mkdir -p /opt/recordings
-# Give it full permissions so your current user and future Docker containers can write
 sudo chmod 777 /opt/recordings
+```
 
-# 💾 IPC Disk Space Management & Prevention Guide
+## 6. Apply Disk Management And Docker Log Controls
 
-This guide summarizes the configurations applied to **APO-IPC-00251-01** to prevent `100% disk usage` failures caused by Docker bloat and system logs.
+This repo includes a machine setup script at [setup/disk-management.sh](setup/disk-management.sh).
 
-## 1. Automated Weekly Cleanup (Cron)
-A root-level cron job is scheduled to prune orphaned Docker data every Sunday at midnight.
+1. Make sure the script is executable if needed:
 
-*   **Configured via:** `sudo crontab -e`
-*   **Schedule:** `0 0 * * 0` (Weekly)
-*   **Command:** 
-    ```bash
-    /usr/bin/docker system prune -af --volumes > /var/log/docker_prune.log 2>&1
-    ```
-*   **Action:** Automatically deletes unused images, stopped containers, build caches, and orphaned volumes.
+```bash
+chmod +x ./setup/disk-management.sh
+```
 
-## 2. System Log Limitations (journalctl)
-The `systemd` journal is capped to prevent it from consuming gigabytes of space over time.
+2. Run the setup script:
 
-*   **Immediate Cleanup:** `sudo journalctl --vacuum-size=200M`
-*   **Permanent Cap:** Modified `/etc/systemd/journald.conf`
-    *   Set: `SystemMaxUse=500M`
-    *   Apply: `sudo systemctl restart systemd-journald`
-*   **Action:** Ensures system logs never exceed 500MB total.
+```bash
+sudo ./setup/disk-management.sh
+```
 
-## 3. Docker Container Log Rotation
-Individual container logs are limited to prevent "hidden" bloat in `/var/lib/docker/containers/`.
+What it configures:
 
-### Global Configuration (Recommended)
-Applied via `/etc/docker/daemon.json`:
-```json
-{
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m",
-    "max-file": "3"
-  }
-}
+- weekly Docker cleanup via cron
+- `journald` size cap and vacuum
+- Docker daemon log rotation in `/etc/docker/daemon.json`
+- immediate Docker system cleanup
+
+Note:
+
+- `mqtt` and `mongodb` rely on this daemon-level Docker logging policy rather than per-service `logging:` blocks in Compose.
+
+## 7. Apply EtherCAT NIC Real-Time Tuning
+
+This repo includes a commissioning script at [setup/ethercat-network-tuning.sh](setup/ethercat-network-tuning.sh).
+
+Use it on a new IPC to install a persistent `systemd` service that:
+
+- collapses the EtherCAT NIC to a single queue
+- disables interrupt coalescing
+- disables latency-adding offloads
+- applies a simple `pfifo_fast` qdisc
+- pins the NIC IRQs to a dedicated CPU core
+
+Example for the current IPC layout:
+
+```bash
+chmod +x ./setup/ethercat-network-tuning.sh
+sudo ./setup/ethercat-network-tuning.sh --nic enp3s0 --cpu 3
+```
+
+Defaults:
+
+- NIC: `enp3s0`
+- CPU: `3`
+
+The script prints the live NIC state after installation so you can confirm queue count, coalescing, offload state, qdisc, and IRQ placement.
+
+## 8. Apply Permissions
+
+This repo includes a setup script at [setup/permissions.sh](setup/permissions.sh).
+
+Use it to install a narrow `sudoers` rule and root-owned helper commands so the UI can:
+
+- start, stop, and restart `codesyscontrol`
+- read the approved CODESYS runtime log tail
+
+without granting broad sudo access to the application user.
+
+Example for the current IPC user:
+
+```bash
+chmod +x ./setup/permissions.sh
+sudo ./setup/permissions.sh --user apollo
+```
+
+The script installs:
+
+- `/usr/local/sbin/codesys-control-action`
+- `/usr/local/sbin/codesys-control-log-tail`
+- `/etc/sudoers.d/<user>-codesys-control`
+
+## 9. Launch Only `mqtt` And `mongodb`
+
+These services use published images, so there is no local build step.
+
+```bash
+docker compose pull mqtt mongodb
+docker compose up -d mqtt mongodb
+docker compose ps mqtt mongodb
+```
+
+## 10. Launch A Single Service
+
+```bash
+docker compose up -d <service-name>
+```
+
+## 11. Validation
+
+Use these checks after setup:
+
+```bash
+docker ps
+docker compose ps mqtt mongodb
+ssh -T git@github.com
+```
+
+For EtherCAT NIC validation:
+
+```bash
+systemctl status enp3s0-rt-network-tuning.service --no-pager -l
+ethtool -l enp3s0
+ethtool -c enp3s0
+ethtool -k enp3s0
+tc qdisc show dev enp3s0
+grep -i enp3s0 /proc/interrupts
+```
+
+For CODESYS UI permissions validation:
+
+```bash
+sudo -n /usr/local/sbin/codesys-control-log-tail
+sudo -n /usr/local/sbin/codesys-control-action restart
+```
+
+## 12. Useful Operations
+
+### MongoDB backup
+
+```bash
+docker exec -it mongo sh -c 'exec mongodump --archive --gzip' > mongo_backup.gz
+```
+
+### Remote IPC
+
+- IP: `10.70.70.50`
+- User: `apollo`
+
+### Copy local SSH public key to remote IPC from Windows
+
+```powershell
+type $env:USERPROFILE\.ssh\id_rsa.pub | ssh apollo-admin@10.70.70.50 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+```
+
