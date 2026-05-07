@@ -7,6 +7,8 @@ INSTALL_DIR="/usr/local/sbin"
 SUDOERS_DIR="/etc/sudoers.d"
 SERVICE_SCRIPT="/etc/init.d/codesyscontrol"
 LOG_FILE="/var/opt/codesys/codesyscontrol.log"
+LOG_TAIL_LINE_COUNT="200"
+TAIL_BIN="$(command -v tail || true)"
 GIT_USER_NAME="kuriousdesign"
 GIT_USER_EMAIL="gardner.761@gmail.com"
 
@@ -76,6 +78,11 @@ validate_inputs() {
         echo "CODESYS service script not found or not executable: $SERVICE_SCRIPT" >&2
         exit 1
     fi
+
+    if [[ -z "$TAIL_BIN" || ! -x "$TAIL_BIN" ]]; then
+        echo "tail binary not found or not executable" >&2
+        exit 1
+    fi
 }
 
 install_helper_scripts() {
@@ -110,7 +117,7 @@ if [[ ! -r "${LOG_FILE}" ]]; then
     exit 1
 fi
 
-grep -n "OPC UA Server Started\\|Port:\\|URL:" "${LOG_FILE}" | tail -n 5
+exec ${TAIL_BIN} -n ${LOG_TAIL_LINE_COUNT} "${LOG_FILE}"
 EOF
 
     chmod 755 "$action_script" "$log_script"
@@ -130,6 +137,7 @@ ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-action start
 ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-action stop
 ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-action restart
 ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-log-tail
+${TARGET_USER} ALL=(root) NOPASSWD: ${TAIL_BIN} -n ${LOG_TAIL_LINE_COUNT} ${LOG_FILE}
 EOF
 
     chmod 440 "$sudoers_file"
@@ -164,6 +172,7 @@ verify_setup() {
     echo "  sudo -n ${INSTALL_DIR}/codesys-control-action stop"
     echo "  sudo -n ${INSTALL_DIR}/codesys-control-action restart"
     echo "  sudo -n ${INSTALL_DIR}/codesys-control-log-tail"
+    echo "  sudo -n ${TAIL_BIN} -n ${LOG_TAIL_LINE_COUNT} ${LOG_FILE}"
 }
 
 main() {
