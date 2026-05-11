@@ -1,0 +1,4 @@
+{$MQTT_WSS_HOSTNAME} {
+    tls internal
+    reverse_proxy 127.0.0.1:9002
+}

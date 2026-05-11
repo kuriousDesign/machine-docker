@@ -9,6 +9,20 @@ services:
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
 
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - mqtt
+    environment:
+      MQTT_WSS_HOSTNAME: ${MQTT_WSS_HOSTNAME}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
   mongodb:
     image: mongo:7
     container_name: mongodb
@@ -28,8 +42,11 @@ services:
       - ./env/ui.env
     network_mode: host
     depends_on:
+      - caddy
       - mqtt
     restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_MQTT_LOCAL_BROKER_URI: wss://${MQTT_WSS_HOSTNAME}/mqtt
     volumes:
       # Bind mount the source code for hot-reload
       - ./machine-ui-heroui-shadcn:/workspaces/machine-ui
@@ -77,6 +94,8 @@ services:
 
 
 volumes:
+  caddy_data:
+  caddy_config:
   machine-ui-node-modules:
   machine-bridge-node-modules:
   mongo_data:

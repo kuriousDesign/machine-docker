@@ -15,7 +15,6 @@ allow_anonymous true  # set to false if you want username/password
 # -----------------------------
 listener 9001
 protocol websockets
-socket_domain ipv4
 #certfile /mosquitto/certs/mosquitto.crt
 #keyfile /mosquitto/certs/mosquitto.key
 allow_anonymous true  # set to false if you want username/password
@@ -23,7 +22,6 @@ allow_anonymous true  # set to false if you want username/password
 
 listener 9002
 protocol websockets
-socket_domain ipv4
 allow_anonymous true
 
 # -----------------------------
@@ -36,14 +34,9 @@ log_dest stdout
 log_type notice
 log_type error
 log_type warning
-log_type websockets
 
 connection_messages true
 log_timestamp true
-websockets_log_level 255
-
-# Reduce socket-level buffering delays while debugging websocket stability.
-set_tcp_nodelay true
 
 # -----------------------------
 # Keepalive

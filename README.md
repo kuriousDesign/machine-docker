@@ -24,11 +24,11 @@ ssh-keygen -t ed25519 -C "apollo@$(hostname)-github" -f ~/.ssh/id_ed25519_github
 
 ```sshconfig
 Host github.com
-	HostName ssh.github.com
-	Port 443
-	User git
-	IdentityFile ~/.ssh/id_ed25519_github_apollo
-	IdentitiesOnly yes
+    HostName ssh.github.com
+    Port 443
+    User git
+    IdentityFile ~/.ssh/id_ed25519_github_apollo
+    IdentitiesOnly yes
 ```
 
 3. Add `~/.ssh/id_ed25519_github_apollo.pub` to the GitHub account under SSH keys.
@@ -186,7 +186,68 @@ docker compose ps mqtt mongodb
 docker compose up -d <service-name>
 ```
 
-## 11. Validation
+## 11. Configure Local MQTT WSS Hostname
+
+This stack can expose the local broker to browser clients through `caddy`, which terminates TLS and proxies `wss` traffic to Mosquitto on `127.0.0.1:9002`.
+
+1. Create a repo `.env` file from `.env.example` if one does not exist.
+2. Set `MQTT_WSS_HOSTNAME` to a machine-specific hostname.
+
+Recommended pattern:
+
+```env
+MQTT_WSS_HOSTNAME=apollo-00225
+```
+
+Notes:
+
+- Use a different suffix per IPC or project, e.g. `apollo-00225`, `apollo-00251`.
+- The UI local broker URI is derived from this value as `wss://<hostname>/mqtt`.
+- For private deployments, `caddy` uses its internal CA, so client devices must trust the generated root certificate.
+
+Start the proxy with:
+
+```bash
+docker compose up -d caddy
+docker compose logs --tail=100 caddy
+```
+
+Add a hosts entry on each client machine that should reach the broker:
+
+```text
+10.70.70.50 apollo-00225
+```
+
+Copy the generated root certificate into the repo for distribution:
+
+```bash
+mkdir -p certs
+docker exec caddy cat /data/caddy/pki/authorities/local/root.crt > certs/caddy-local-root.crt
+```
+
+The IPC checkout will then contain the certificate at `certs/caddy-local-root.crt`.
+
+On each Windows client machine that should trust the local `wss` endpoint:
+
+1. Import the certificate into the Trusted Root store from an elevated PowerShell:
+
+```powershell
+Import-Certificate -FilePath .\certs\caddy-local-root.crt -CertStoreLocation Cert:\LocalMachine\Root
+```
+
+2. Validate name resolution and port reachability:
+
+```powershell
+Test-NetConnection apollo-00225 -Port 443
+```
+
+For browser and Next.js clients, the local broker URI should be:
+
+```text
+wss://apollo-00225/mqtt
+```
+
+## 12. Validation
 
 Use these checks after setup:
 
@@ -214,7 +275,7 @@ sudo -n /usr/local/sbin/codesys-control-log-tail
 sudo -n /usr/local/sbin/codesys-control-action restart
 ```
 
-## 12. Useful Operations
+## 13. Useful Operations
 
 ### MongoDB backup
 
@@ -232,4 +293,3 @@ docker exec -it mongo sh -c 'exec mongodump --archive --gzip' > mongo_backup.gz
 ```powershell
 type $env:USERPROFILE\.ssh\id_rsa.pub | ssh apollo-admin@10.70.70.50 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 ```
-
