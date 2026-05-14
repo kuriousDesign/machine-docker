@@ -154,6 +154,7 @@ Use it to install a narrow `sudoers` rule and root-owned helper commands so the 
 
 - start, stop, and restart `codesyscontrol`
 - read the approved CODESYS runtime log tail
+- reset the generated `machine-ui` `.next` directory if a root-owned container run leaves local dev blocked
 
 without granting broad sudo access to the application user.
 
@@ -170,7 +171,16 @@ The script installs:
 
 - `/usr/local/sbin/codesys-control-action`
 - `/usr/local/sbin/codesys-control-log-tail`
+- `/usr/local/sbin/machine-ui-reset-build-cache`
 - `/etc/sudoers.d/<user>-codesys-control`
+
+After installation, the target user can run:
+
+```bash
+sudo -n /usr/local/sbin/machine-ui-reset-build-cache
+```
+
+That helper removes and recreates `/opt/repos/machine-ui-heroui-shadcn/.next` with the correct ownership for the configured Linux user.
 
 ## 9. Launch Only `mqtt` And `mongodb`
 

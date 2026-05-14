@@ -9,6 +9,7 @@ SERVICE_SCRIPT="/etc/init.d/codesyscontrol"
 LOG_FILE="/var/opt/codesys/codesyscontrol.log"
 LOG_TAIL_LINE_COUNT="200"
 TAIL_BIN="$(command -v tail || true)"
+UI_REPO_DIR="${UI_REPO_DIR:-/opt/repos/machine-ui-heroui-shadcn}"
 GIT_USER_NAME="kuriousdesign"
 GIT_USER_EMAIL="gardner.761@gmail.com"
 
@@ -19,6 +20,7 @@ Usage: sudo ./setup/permissions.sh [--user <name>]
 Installs a narrow sudoers rule and root-owned helper commands so the UI can:
 - start, stop, and restart codesyscontrol
 - tail the approved CODESYS runtime log
+- reset the generated machine-ui build cache directory when container runs leave it root-owned
 - set the target user's global Git username and email
 
 without granting broad sudo access to the application user.
@@ -29,6 +31,7 @@ Options:
 
 Environment overrides:
   TARGET_USER=<name>
+    UI_REPO_DIR=<path>
 
 If --user and TARGET_USER are omitted, the script uses the invoking sudo user.
 EOF
@@ -104,11 +107,20 @@ validate_inputs() {
         echo "tail binary not found or not executable" >&2
         exit 1
     fi
+
+    if [[ ! -d "$UI_REPO_DIR" ]]; then
+        echo "machine-ui repo directory not found: $UI_REPO_DIR" >&2
+        exit 1
+    fi
 }
 
 install_helper_scripts() {
     local action_script="${INSTALL_DIR}/codesys-control-action"
     local log_script="${INSTALL_DIR}/codesys-control-log-tail"
+    local ui_reset_script="${INSTALL_DIR}/machine-ui-reset-build-cache"
+    local target_group
+
+    target_group="$(id -gn "$TARGET_USER")"
 
     install -d "$INSTALL_DIR"
 
@@ -141,12 +153,23 @@ fi
 exec ${TAIL_BIN} -n ${LOG_TAIL_LINE_COUNT} "${LOG_FILE}"
 EOF
 
-    chmod 755 "$action_script" "$log_script"
-    chown root:root "$action_script" "$log_script"
+    cat >"$ui_reset_script" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+rm -rf "${UI_REPO_DIR}/.next"
+install -d -m 775 -o "${TARGET_USER}" -g "${target_group}" "${UI_REPO_DIR}/.next"
+
+echo "Reset machine-ui build cache at ${UI_REPO_DIR}/.next for ${TARGET_USER}:${target_group}"
+EOF
+
+    chmod 755 "$action_script" "$log_script" "$ui_reset_script"
+    chown root:root "$action_script" "$log_script" "$ui_reset_script"
 
     echo "Installed helper scripts:"
     echo "  $action_script"
     echo "  $log_script"
+    echo "  $ui_reset_script"
 }
 
 install_sudoers_rule() {
@@ -158,6 +181,7 @@ ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-action start
 ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-action stop
 ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-action restart
 ${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/codesys-control-log-tail
+${TARGET_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/machine-ui-reset-build-cache
 ${TARGET_USER} ALL=(root) NOPASSWD: ${TAIL_BIN} -n ${LOG_TAIL_LINE_COUNT} ${LOG_FILE}
 EOF
 
@@ -193,6 +217,7 @@ verify_setup() {
     echo "  sudo -n ${INSTALL_DIR}/codesys-control-action stop"
     echo "  sudo -n ${INSTALL_DIR}/codesys-control-action restart"
     echo "  sudo -n ${INSTALL_DIR}/codesys-control-log-tail"
+    echo "  sudo -n ${INSTALL_DIR}/machine-ui-reset-build-cache"
     echo "  sudo -n ${TAIL_BIN} -n ${LOG_TAIL_LINE_COUNT} ${LOG_FILE}"
 }
 
