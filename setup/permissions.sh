@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-TARGET_USER="${TARGET_USER:-apollo}"
+TARGET_USER="${TARGET_USER:-}"
 INSTALL_DIR="/usr/local/sbin"
 SUDOERS_DIR="/etc/sudoers.d"
 SERVICE_SCRIPT="/etc/init.d/codesyscontrol"
@@ -24,11 +24,13 @@ Installs a narrow sudoers rule and root-owned helper commands so the UI can:
 without granting broad sudo access to the application user.
 
 Options:
-  --user <name>   Linux user allowed to run the helper commands (default: ${TARGET_USER})
+    --user <name>   Linux user allowed to run the helper commands
   --help          Show this message
 
 Environment overrides:
   TARGET_USER=<name>
+
+If --user and TARGET_USER are omitted, the script uses the invoking sudo user.
 EOF
 }
 
@@ -48,10 +50,29 @@ require_command() {
     fi
 }
 
+resolve_target_user() {
+    if [[ -n "$TARGET_USER" ]]; then
+        return
+    fi
+
+    if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+        TARGET_USER="$SUDO_USER"
+        return
+    fi
+
+    echo "Unable to determine the target user automatically. Re-run with --user <name> or TARGET_USER=<name>." >&2
+    exit 1
+}
+
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --user)
+                if [[ $# -lt 2 || -z "$2" ]]; then
+                    echo "Missing value for --user" >&2
+                    usage >&2
+                    exit 1
+                fi
                 TARGET_USER="$2"
                 shift 2
                 ;;
@@ -178,6 +199,7 @@ verify_setup() {
 main() {
     parse_args "$@"
     require_root
+    resolve_target_user
     require_command grep
     require_command git
     require_command getent

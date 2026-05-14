@@ -161,8 +161,10 @@ Example for the current IPC user:
 
 ```bash
 chmod +x ./setup/permissions.sh
-sudo ./setup/permissions.sh --user apollo
+sudo ./setup/permissions.sh
 ```
+
+The script auto-detects the invoking `sudo` user. If you run it from a root shell or need to target a different account, pass `--user <linux-user>` explicitly, for example `--user apollo-admin`.
 
 The script installs:
 
