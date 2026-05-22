@@ -184,7 +184,28 @@ sudo -n /usr/local/sbin/machine-ui-reset-build-cache
 
 That helper removes and recreates `/opt/repos/machine-ui-heroui-shadcn/.next` with the correct ownership for the configured Linux user.
 
-## 9. Launch Only `mqtt` And `mongodb`
+## 9. Configure UI Chrome Autostart
+
+This repo includes a setup script at [setup/chrome-ui-autostart.sh](setup/chrome-ui-autostart.sh).
+
+Use it to install a per-user GNOME autostart entry that opens Chrome to the machine UI as soon as the desktop session logs in.
+
+Example for the current IPC:
+
+```bash
+chmod +x ./setup/chrome-ui-autostart.sh
+sudo ./setup/chrome-ui-autostart.sh --user apollo --url http://apollo-00251:3000
+```
+
+Notes:
+
+- The script defaults to the `apollo` user if `--user` is omitted.
+- Pass the exact UI URL you want the operator session to open at login.
+- Chrome launches in fullscreen mode for the UI session.
+- The launcher also disables common Chrome startup prompts such as first-run, default-browser, crash-recovery, and other modal error dialogs.
+- Chrome is auto-detected from `google-chrome-stable`, `google-chrome`, `chromium-browser`, or `chromium` unless `--browser` is supplied.
+
+## 10. Launch Only `mqtt` And `mongodb`
 
 These services use published images, so there is no local build step.
 
@@ -194,13 +215,13 @@ docker compose up -d mqtt mongodb
 docker compose ps mqtt mongodb
 ```
 
-## 10. Launch A Single Service
+## 11. Launch A Single Service
 
 ```bash
 docker compose up -d <service-name>
 ```
 
-## 11. Configure Local MQTT WSS Hostname
+## 12. Configure Local MQTT WSS Hostname
 
 This stack can expose the local broker to browser clients through `caddy`, which terminates TLS and proxies `wss` traffic to Mosquitto on `127.0.0.1:9002`.
 
@@ -276,7 +297,7 @@ For browser and Next.js clients, the local broker URI should be:
 wss://apollo-00225/mqtt
 ```
 
-## 12. Validation
+## 13. Validation
 
 Use these checks after setup:
 
@@ -304,7 +325,13 @@ sudo -n /usr/local/sbin/codesys-control-log-tail
 sudo -n /usr/local/sbin/codesys-control-action restart
 ```
 
-## 13. Useful Operations
+For Chrome UI autostart validation:
+
+```bash
+sudo cat /home/apollo/.config/autostart/machine-ui-chrome.desktop
+```
+
+## 14. Useful Operations
 
 ### MongoDB backup
 
