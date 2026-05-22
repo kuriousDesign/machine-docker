@@ -136,13 +136,15 @@ Example for the current IPC layout:
 
 ```bash
 chmod +x ./setup/ethercat-network-tuning.sh
-sudo ./setup/ethercat-network-tuning.sh --nic enp3s0 --cpu 3
+sudo bash ./setup/ethercat-network-tuning.sh --nic enp2s0 --cpu 3
 ```
 
 Defaults:
 
 - NIC: `enp3s0`
 - CPU: `3`
+
+For this IPC, use `enp2s0`.
 
 The script prints the live NIC state after installation so you can confirm queue count, coalescing, offload state, qdisc, and IRQ placement.
 
@@ -217,6 +219,21 @@ Notes:
 - The UI local broker URI is derived from this value as `wss://<hostname>/mqtt`.
 - For private deployments, `caddy` uses its internal CA, so client devices must trust the generated root certificate.
 
+If the IPC itself should resolve that hostname back to the local broker, install a localhost hosts-file alias:
+
+```bash
+chmod +x ./setup/network-host-alias.sh
+sudo ./setup/network-host-alias.sh --machine-id 00225
+```
+
+That script adds or updates a hosts entry in the form:
+
+```text
+127.0.0.1 apollo-00225
+```
+
+For this IPC, use `00225` so the local alias becomes `apollo-00225`.
+
 Start the proxy with:
 
 ```bash
@@ -272,12 +289,12 @@ ssh -T git@github.com
 For EtherCAT NIC validation:
 
 ```bash
-systemctl status enp3s0-rt-network-tuning.service --no-pager -l
-ethtool -l enp3s0
-ethtool -c enp3s0
-ethtool -k enp3s0
-tc qdisc show dev enp3s0
-grep -i enp3s0 /proc/interrupts
+systemctl status enp2s0-rt-network-tuning.service --no-pager -l
+ethtool -l enp2s0
+ethtool -c enp2s0
+ethtool -k enp2s0
+tc qdisc show dev enp2s0
+grep -i enp2s0 /proc/interrupts
 ```
 
 For CODESYS UI permissions validation:
