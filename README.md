@@ -203,6 +203,7 @@ Notes:
 - Pass the exact UI URL you want the operator session to open at login.
 - Chrome launches in fullscreen mode for the UI session.
 - The launcher also disables common Chrome startup prompts such as first-run, default-browser, crash-recovery, and other modal error dialogs.
+- The launcher uses `--password-store=basic` so Chrome does not prompt to unlock the GNOME keyring on autologin.
 - Chrome is auto-detected from `google-chrome-stable`, `google-chrome`, `chromium-browser`, or `chromium` unless `--browser` is supplied.
 
 ## 10. Launch Only `mqtt` And `mongodb`

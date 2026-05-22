@@ -155,7 +155,7 @@ Type=Application
 Version=1.0
 Name=Machine UI Chrome
 Comment=Launch the machine UI in Chrome at login
-Exec=${BROWSER_BIN} --no-first-run --no-default-browser-check --disable-session-crashed-bubble --disable-features=ChromeWhatsNewUI --noerrdialogs --test-type --start-fullscreen --new-window ${UI_URL}
+Exec=${BROWSER_BIN} --no-first-run --no-default-browser-check --password-store=basic --disable-session-crashed-bubble --disable-features=ChromeWhatsNewUI --noerrdialogs --test-type --start-fullscreen --new-window ${UI_URL}
 Terminal=false
 X-GNOME-Autostart-enabled=true
 StartupNotify=false
