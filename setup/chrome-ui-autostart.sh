@@ -6,13 +6,14 @@ TARGET_USER="${TARGET_USER:-apollo}"
 UI_URL="${UI_URL:-}"
 BROWSER_BIN="${BROWSER_BIN:-}"
 AUTOSTART_FILE_NAME="machine-ui-chrome.desktop"
+DESKTOP_SHORTCUT_FILE_NAME="Machine UI Chrome.desktop"
 
 usage() {
     cat <<EOF
 Usage: sudo ./setup/chrome-ui-autostart.sh --url <ui-url> [--user <linux-user>] [--browser <path>]
 
-Installs a per-user desktop autostart entry that launches Chrome to the
-machine UI when the desktop session starts.
+Installs a per-user desktop autostart entry and desktop shortcut that launch
+Chrome to the machine UI.
 
 Options:
   --url <ui-url>       UI URL to open at login, for example http://apollo-00251:3000 (required)
@@ -88,6 +89,31 @@ parse_args() {
 
 resolve_user_home() {
     getent passwd "$TARGET_USER" | cut -d: -f6
+}
+
+resolve_desktop_dir() {
+    local user_home
+    local user_dirs_file
+    local configured_dir
+
+    user_home="$(resolve_user_home)"
+    user_dirs_file="${user_home}/.config/user-dirs.dirs"
+
+    if [[ -f "$user_dirs_file" ]]; then
+        configured_dir="$({
+            grep '^XDG_DESKTOP_DIR=' "$user_dirs_file" || true
+        } | tail -n 1)"
+        configured_dir="${configured_dir#XDG_DESKTOP_DIR=}"
+        configured_dir="${configured_dir//\"/}"
+        configured_dir="${configured_dir//\$HOME/$user_home}"
+
+        if [[ -n "$configured_dir" ]]; then
+            printf '%s\n' "$configured_dir"
+            return
+        fi
+    fi
+
+    printf '%s/Desktop\n' "$user_home"
 }
 
 detect_browser() {
@@ -176,17 +202,60 @@ EOF
     echo "  Desktop entry: $desktop_file"
 }
 
+install_desktop_shortcut() {
+    local user_home
+    local target_group
+    local desktop_dir
+    local desktop_file
+    local temp_file
+
+    user_home="$(resolve_user_home)"
+    target_group="$(id -gn "$TARGET_USER")"
+    desktop_dir="$(resolve_desktop_dir)"
+    desktop_file="${desktop_dir}/${DESKTOP_SHORTCUT_FILE_NAME}"
+    temp_file="$(mktemp)"
+
+    install -d -m 755 -o "$TARGET_USER" -g "$target_group" "$desktop_dir"
+
+    cat >"$temp_file" <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Machine UI Chrome
+Comment=Launch the machine UI in Chrome
+Exec=${BROWSER_BIN} --no-first-run --no-default-browser-check --password-store=basic --disable-session-crashed-bubble --disable-features=ChromeWhatsNewUI --noerrdialogs --test-type --start-fullscreen --new-window ${UI_URL}
+Terminal=false
+Icon=google-chrome
+StartupNotify=false
+EOF
+
+    if [[ -f "$desktop_file" ]] && cmp -s "$temp_file" "$desktop_file"; then
+        rm -f "$temp_file"
+        echo "Chrome UI desktop shortcut already configured for $TARGET_USER at $desktop_file"
+        return
+    fi
+
+    install -m 755 -o "$TARGET_USER" -g "$target_group" "$temp_file" "$desktop_file"
+    rm -f "$temp_file"
+
+    echo "Installed Chrome UI desktop shortcut for $TARGET_USER"
+    echo "  Shortcut: $desktop_file"
+}
+
 main() {
     parse_args "$@"
     require_root
     require_command cmp
     require_command getent
+    require_command grep
     require_command id
     require_command install
     require_command mktemp
+    require_command tail
     detect_browser
     validate_inputs
     install_autostart_entry
+    install_desktop_shortcut
 }
 
 main "$@"

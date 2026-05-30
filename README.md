@@ -188,7 +188,7 @@ That helper removes and recreates `/opt/repos/machine-ui-heroui-shadcn/.next` wi
 
 This repo includes a setup script at [setup/chrome-ui-autostart.sh](setup/chrome-ui-autostart.sh).
 
-Use it to install a per-user GNOME autostart entry that opens Chrome to the machine UI as soon as the desktop session logs in.
+Use it to install a per-user GNOME autostart entry and a desktop launcher that open Chrome to the machine UI.
 
 Example for the current IPC:
 
@@ -201,6 +201,7 @@ Notes:
 
 - The script defaults to the `apollo` user if `--user` is omitted.
 - Pass the exact UI URL you want the operator session to open at login.
+- The script also adds a clickable desktop icon for the target user.
 - Chrome launches in fullscreen mode for the UI session.
 - The launcher also disables common Chrome startup prompts such as first-run, default-browser, crash-recovery, and other modal error dialogs.
 - The launcher uses `--password-store=basic` so Chrome does not prompt to unlock the GNOME keyring on autologin.
