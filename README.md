@@ -148,7 +148,54 @@ For this IPC, use `enp2s0`.
 
 The script prints the live NIC state after installation so you can confirm queue count, coalescing, offload state, qdisc, and IRQ placement.
 
-## 8. Apply Permissions
+## 8. Probe EtherCAT Traffic On A NIC
+
+This repo includes a diagnostic script at [setup/ethercat-device-check.py](setup/ethercat-device-check.py).
+
+Use it when you need to answer one narrow question from Linux: does a given NIC see EtherCAT frames, and are slave responses coming back on that interface?
+
+Example:
+
+```bash
+chmod +x ./setup/ethercat-device-check.py
+sudo ./setup/ethercat-device-check.py --nic enp3s0 --duration 10
+```
+
+How to interpret the result:
+
+- `this NIC is seeing EtherCAT responses from the bus` means the interface is connected to an active EtherCAT segment and frames are returning from at least one device
+- `the host is sending EtherCAT traffic, but no slave responses were observed` usually means the master is transmitting on the correct NIC but the bus is not replying
+- `no EtherCAT traffic was observed` means either the wrong NIC was selected or no EtherCAT master traffic was present during the capture window
+
+Notes:
+
+- this is a passive traffic probe, not a full EtherCAT master scan
+- to get a useful result, run it while CODESYS or another EtherCAT master is actively trying to start the bus
+- the script also prints NIC RX and TX packet deltas during the capture window so you can spot TX-only behavior quickly
+
+If you need to stop CODESYS temporarily and run an active Linux-side EtherCAT slave scan, use [setup/ethercat-active-scan.sh](setup/ethercat-active-scan.sh).
+
+Build the SOEM scanner without touching runtime:
+
+```bash
+chmod +x ./setup/ethercat-active-scan.sh
+sudo ./setup/ethercat-active-scan.sh --build-only --nic enp3s0
+```
+
+Run a full stop-scan-restart cycle:
+
+```bash
+sudo ./setup/ethercat-active-scan.sh --nic enp3s0
+```
+
+Notes:
+
+- this is an active EtherCAT master probe, so it cannot share the NIC with a running CODESYS EtherCAT master
+- the script builds SOEM `slaveinfo` in Docker under `/var/tmp/machine-docker-soem`
+- if CODESYS runtime is active, the script stops it before scanning and restarts it automatically afterwards
+- pass `--leave-runtime-stopped` if you need to inspect state before bringing CODESYS back up
+
+## 9. Apply Permissions
 
 This repo includes a setup script at [setup/permissions.sh](setup/permissions.sh).
 
@@ -184,7 +231,7 @@ sudo -n /usr/local/sbin/machine-ui-reset-build-cache
 
 That helper removes and recreates `/opt/repos/machine-ui-heroui-shadcn/.next` with the correct ownership for the configured Linux user.
 
-## 9. Configure UI Chrome Autostart
+## 10. Configure UI Chrome Autostart
 
 This repo includes a setup script at [setup/chrome-ui-autostart.sh](setup/chrome-ui-autostart.sh).
 
@@ -207,7 +254,7 @@ Notes:
 - The launcher uses `--password-store=basic` so Chrome does not prompt to unlock the GNOME keyring on autologin.
 - Chrome is auto-detected from `google-chrome-stable`, `google-chrome`, `chromium-browser`, or `chromium` unless `--browser` is supplied.
 
-## 10. Launch Only `mqtt` And `mongodb`
+## 11. Launch Only `mqtt` And `mongodb`
 
 These services use published images, so there is no local build step.
 
@@ -217,13 +264,56 @@ docker compose up -d mqtt mongodb
 docker compose ps mqtt mongodb
 ```
 
-## 11. Launch A Single Service
+## 12. Launch A Single Service
 
 ```bash
 docker compose up -d <service-name>
 ```
 
-## 12. Configure Local MQTT WSS Hostname
+## 13. Configure A Dedicated X11 Kiosk Client
+
+This repo includes a setup script at [setup/kiosk-ui-client.sh](setup/kiosk-ui-client.sh).
+
+Use it when a separate Ubuntu client machine should boot directly into a persistent kiosk session using:
+
+- `lightdm` autologin
+- `openbox` on X11
+- `chromium-browser` in fullscreen kiosk mode
+
+The script will:
+
+- install the required packages if they are missing
+- create or reuse a dedicated `kiosk` user
+- configure LightDM autologin for that user
+- write `/home/kiosk/.config/openbox/autostart`
+- disable screen blanking, DPMS, and screensaver
+- map `apollo-<machine-id>` to the target UI IP in `/etc/hosts`
+- detect whether the machine has a real display connected
+- install an Xorg dummy display automatically when no display hardware is detected, unless you explicitly disable that behavior
+- restart LightDM and print verification output including `loginctl`, the final autostart file, and the running Chromium command line
+
+Example for machine `00225`:
+
+```bash
+chmod +x ./setup/kiosk-ui-client.sh
+sudo ./setup/kiosk-ui-client.sh \
+    --machine-id 00225 \
+    --host-ip 192.168.102.1 \
+    --url http://apollo-00225:3001/
+```
+
+Notes:
+
+- This script targets a LightDM + Openbox X11 kiosk session, not GNOME.
+- The default kiosk user is `kiosk`.
+- The default display is `:0`.
+- The default dummy display mode is `auto`, which installs an Xorg dummy display if no connected local display hardware is detected.
+- If you want the script to fail instead of configuring a dummy display, pass `--dummy-display never`.
+- The generated Openbox autostart launches Chromium with the kiosk flags requested for the machine UI.
+
+## 14. Configure Local MQTT WSS Hostname
+
+
 
 This stack can expose the local broker to browser clients through `caddy`, which terminates TLS and proxies `wss` traffic to Mosquitto on `127.0.0.1:9002`.
 
@@ -248,6 +338,15 @@ If the IPC itself should resolve that hostname back to the local broker, install
 chmod +x ./setup/network-host-alias.sh
 sudo ./setup/network-host-alias.sh --machine-id 00225
 ```
+
+If the host EtherCAT-facing NIC should use a fixed local address, install it with:
+
+```bash
+chmod +x ./setup/network-static-ip.sh
+sudo ./setup/network-static-ip.sh --nic enp2s0 --address 192.168.102.1/24
+```
+
+That script prefers NetworkManager when available and otherwise writes a dedicated netplan file so the address persists across reboots without taking over the default route.
 
 That script adds or updates a hosts entry in the form:
 
