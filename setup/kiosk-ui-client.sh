@@ -32,7 +32,7 @@ Options:
   --machine-id <id>            Machine ID used to derive the hostname (default: ${MACHINE_ID})
   --host-prefix <prefix>       Hostname prefix (default: ${HOST_PREFIX})
   --host-ip <ipv4>             IP address mapped in /etc/hosts (default: ${HOST_IP})
-  --url <http-url>             URL to open in Chromium (default: http://<prefix>-<machine-id>:3001/)
+    --url <http-url>             URL to open in Chromium (default: http://<prefix>-<machine-id>:3000/)
   --display <display>          X11 display name to target (default: ${DISPLAY_NAME})
   --dummy-display <mode>       One of auto, always, never (default: ${DUMMY_DISPLAY_MODE})
   --help                       Show this message
@@ -130,7 +130,7 @@ validate_inputs() {
     fi
 
     if [[ -z "$UI_URL" ]]; then
-        UI_URL="http://${HOST_PREFIX}-${MACHINE_ID}:3001/"
+        UI_URL="http://${HOST_PREFIX}-${MACHINE_ID}:3000/"
     fi
 
     if [[ ! "$UI_URL" =~ ^https?://[^[:space:]]+$ ]]; then

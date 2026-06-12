@@ -299,7 +299,7 @@ chmod +x ./setup/kiosk-ui-client.sh
 sudo ./setup/kiosk-ui-client.sh \
     --machine-id 00225 \
     --host-ip 192.168.102.1 \
-    --url http://apollo-00225:3001/
+    --url http://apollo-00225:3000/
 ```
 
 Notes:
