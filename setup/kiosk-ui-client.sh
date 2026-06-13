@@ -16,6 +16,8 @@ HOSTS_FILE="/etc/hosts"
 XORG_CONF_DIR="/etc/X11/xorg.conf.d"
 DUMMY_XORG_CONF_FILE="${XORG_CONF_DIR}/20-kiosk-dummy.conf"
 CHROMIUM_WRAPPER_PATH="/usr/local/bin/chromium-browser"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CADDY_ROOT_CERT_FALLBACK="${REPO_ROOT}/certs/caddy-local-root.crt"
 
 DISPLAY_BACKEND="unknown"
 LOGINCTL_REPORT=""
@@ -166,6 +168,7 @@ install_packages() {
     local common_packages=(
         curl
         dbus-x11
+        libnss3-tools
         lightdm
         lightdm-gtk-greeter
         openbox
@@ -414,6 +417,71 @@ EOF
     chown "$TARGET_USER":"$group_name" "$autostart_file"
 }
 
+resolve_caddy_root_cert() {
+    local live_cert_path="/var/lib/docker/volumes/machine-docker_caddy_data/_data/caddy/pki/authorities/local/root.crt"
+
+    if [[ -f "$live_cert_path" ]]; then
+        printf '%s\n' "$live_cert_path"
+        return
+    fi
+
+    if [[ -f "$CADDY_ROOT_CERT_FALLBACK" ]]; then
+        printf '%s\n' "$CADDY_ROOT_CERT_FALLBACK"
+        return
+    fi
+
+    printf '%s\n' ""
+}
+
+import_caddy_root_certificate() {
+    local user_home
+    local group_name
+    local cert_path
+    local staged_cert_path
+    local nssdb_dir
+    local imported_any="false"
+    local -a nssdb_dirs=()
+
+    cert_path="$(resolve_caddy_root_cert)"
+    if [[ -z "$cert_path" ]]; then
+        echo "Skipping Chromium trust import: no Caddy root certificate found." >&2
+        return
+    fi
+
+    user_home="$(resolve_user_home)"
+    group_name="$(id -gn "$TARGET_USER")"
+    staged_cert_path="${user_home}/.config/caddy-local-root.crt"
+    nssdb_dirs=(
+        "${user_home}/.pki/nssdb"
+        "${user_home}/snap/chromium/current/.pki/nssdb"
+    )
+
+    install -d -m 755 -o "$TARGET_USER" -g "$group_name" "${user_home}/.config"
+    install -m 644 -o "$TARGET_USER" -g "$group_name" "$cert_path" "$staged_cert_path"
+
+    for nssdb_dir in "${nssdb_dirs[@]}"; do
+        install -d -m 700 -o "$TARGET_USER" -g "$group_name" "$nssdb_dir"
+
+        if ! sudo -u "$TARGET_USER" certutil -d "sql:${nssdb_dir}" -L >/dev/null 2>&1; then
+            sudo -u "$TARGET_USER" certutil -d "sql:${nssdb_dir}" -N --empty-password
+        fi
+
+        sudo -u "$TARGET_USER" certutil -d "sql:${nssdb_dir}" -D -n "Caddy Local Authority" >/dev/null 2>&1 || true
+        sudo -u "$TARGET_USER" certutil \
+            -d "sql:${nssdb_dir}" \
+            -A \
+            -n "Caddy Local Authority" \
+            -t "C,," \
+            -i "$staged_cert_path"
+
+        imported_any="true"
+    done
+
+    if [[ "$imported_any" == "true" ]]; then
+        echo "Imported Caddy root certificate into Chromium NSS trust stores from ${cert_path}"
+    fi
+}
+
 restart_display_manager() {
     if systemctl is-active --quiet lightdm; then
         systemctl restart lightdm
@@ -532,6 +600,7 @@ main() {
     configure_dummy_display_if_needed
     configure_lightdm_autologin
     configure_openbox_autostart
+    import_caddy_root_certificate
     restart_display_manager
     verify_setup
 }

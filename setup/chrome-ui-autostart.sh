@@ -5,12 +5,17 @@ set -euo pipefail
 TARGET_USER="${TARGET_USER:-apollo}"
 UI_URL="${UI_URL:-}"
 BROWSER_BIN="${BROWSER_BIN:-}"
+HOST_ALIAS="${HOST_ALIAS:-}"
+HOST_IP="${HOST_IP:-}"
 AUTOSTART_FILE_NAME="machine-ui-chrome.desktop"
 DESKTOP_SHORTCUT_FILE_NAME="Machine UI Chrome.desktop"
+HOSTS_FILE="/etc/hosts"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CADDY_ROOT_CERT_PATH="${REPO_ROOT}/certs/caddy-local-root.crt"
 
 usage() {
     cat <<EOF
-Usage: sudo ./setup/chrome-ui-autostart.sh --url <ui-url> [--user <linux-user>] [--browser <path>]
+Usage: sudo ./setup/chrome-ui-autostart.sh --url <ui-url> [--user <linux-user>] [--browser <path>] [--host-alias <hostname> --host-ip <ipv4>]
 
 Installs a per-user desktop autostart entry and desktop shortcut that launch
 Chrome to the machine UI.
@@ -19,12 +24,16 @@ Options:
   --url <ui-url>       UI URL to open at login, for example http://apollo-00251:3000 (required)
   --user <linux-user>  Linux account that should receive the autostart entry (default: ${TARGET_USER})
   --browser <path>     Browser executable to launch (default: auto-detect Chrome/Chromium)
+    --host-alias <name>  Optional hostname to add to /etc/hosts, for example apollo-00225
+    --host-ip <ipv4>     IPv4 address paired with --host-alias, for example 192.168.102.1
   --help               Show this message
 
 Environment overrides:
   TARGET_USER=<linux-user>
   UI_URL=<ui-url>
   BROWSER_BIN=<path>
+    HOST_ALIAS=<hostname>
+    HOST_IP=<ipv4>
 EOF
 }
 
@@ -72,6 +81,24 @@ parse_args() {
                     exit 1
                 fi
                 BROWSER_BIN="$2"
+                shift 2
+                ;;
+            --host-alias)
+                if [[ $# -lt 2 || -z "$2" ]]; then
+                    echo "Missing value for --host-alias" >&2
+                    usage >&2
+                    exit 1
+                fi
+                HOST_ALIAS="$2"
+                shift 2
+                ;;
+            --host-ip)
+                if [[ $# -lt 2 || -z "$2" ]]; then
+                    echo "Missing value for --host-ip" >&2
+                    usage >&2
+                    exit 1
+                fi
+                HOST_IP="$2"
                 shift 2
                 ;;
             --help|-h)
@@ -158,6 +185,122 @@ validate_inputs() {
         echo "Browser executable not found or not executable: $BROWSER_BIN" >&2
         exit 1
     fi
+
+    if [[ -n "$HOST_ALIAS" || -n "$HOST_IP" ]]; then
+        if [[ -z "$HOST_ALIAS" || -z "$HOST_IP" ]]; then
+            echo "--host-alias and --host-ip must be provided together." >&2
+            exit 1
+        fi
+
+        if [[ ! "$HOST_ALIAS" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]; then
+            echo "Host alias must be alphanumeric, dot, or hyphen. Got: $HOST_ALIAS" >&2
+            exit 1
+        fi
+
+        if [[ ! "$HOST_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            echo "Host IP must be an IPv4 address. Got: $HOST_IP" >&2
+            exit 1
+        fi
+    fi
+
+    if [[ ! -f "$HOSTS_FILE" ]]; then
+        echo "Hosts file not found: $HOSTS_FILE" >&2
+        exit 1
+    fi
+}
+
+configure_hosts_alias() {
+    local temp_file
+
+    if [[ -z "$HOST_ALIAS" || -z "$HOST_IP" ]]; then
+        return
+    fi
+
+    temp_file="$(mktemp)"
+
+    awk -v host_alias="$HOST_ALIAS" '
+        $0 ~ /^[[:space:]]*#/ {
+            print
+            next
+        }
+
+        {
+            keep_count = 0
+            for (i = 2; i <= NF; i++) {
+                if ($i != host_alias) {
+                    keep[++keep_count] = $i
+                }
+            }
+
+            if (keep_count == 0) {
+                if (NF >= 1 && $1 !~ /^[[:space:]]*$/) {
+                    next
+                }
+                print
+                next
+            }
+
+            printf "%s", $1
+            for (i = 1; i <= keep_count; i++) {
+                printf " %s", keep[i]
+                delete keep[i]
+            }
+            printf "\n"
+        }
+    ' "$HOSTS_FILE" >"$temp_file"
+
+    printf "%s %s\n" "$HOST_IP" "$HOST_ALIAS" >>"$temp_file"
+    install -m 644 "$temp_file" "$HOSTS_FILE"
+    rm -f "$temp_file"
+
+    echo "Configured hosts entry: ${HOST_IP} ${HOST_ALIAS}"
+}
+
+import_caddy_root_certificate() {
+    local user_home
+    local target_group
+    local staged_cert_path
+    local nssdb_dir
+
+    if [[ ! -f "$CADDY_ROOT_CERT_PATH" ]]; then
+        echo "Skipping certificate import: missing ${CADDY_ROOT_CERT_PATH}" >&2
+        return
+    fi
+
+    if ! command -v certutil >/dev/null 2>&1; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y --no-install-recommends libnss3-tools
+    fi
+
+    user_home="$(resolve_user_home)"
+    target_group="$(id -gn "$TARGET_USER")"
+    staged_cert_path="${user_home}/.config/caddy-local-root.crt"
+
+    install -d -m 755 -o "$TARGET_USER" -g "$target_group" "${user_home}/.config"
+    install -d -m 755 -o "$TARGET_USER" -g "$target_group" "${user_home}/.pki"
+    install -m 644 -o "$TARGET_USER" -g "$target_group" "$CADDY_ROOT_CERT_PATH" "$staged_cert_path"
+
+    for nssdb_dir in \
+        "${user_home}/.pki/nssdb" \
+        "${user_home}/snap/chromium/current/.pki/nssdb" \
+        "${user_home}/snap/google-chrome/current/.pki/nssdb"; do
+        install -d -m 700 -o "$TARGET_USER" -g "$target_group" "$nssdb_dir"
+
+        if ! sudo -u "$TARGET_USER" certutil -d "sql:${nssdb_dir}" -L >/dev/null 2>&1; then
+            sudo -u "$TARGET_USER" certutil -d "sql:${nssdb_dir}" -N --empty-password
+        fi
+
+        sudo -u "$TARGET_USER" certutil -d "sql:${nssdb_dir}" -D -n "Caddy Local Authority" >/dev/null 2>&1 || true
+        sudo -u "$TARGET_USER" certutil \
+            -d "sql:${nssdb_dir}" \
+            -A \
+            -n "Caddy Local Authority" \
+            -t "C,," \
+            -i "$staged_cert_path"
+    done
+
+    echo "Imported Caddy root certificate for ${TARGET_USER}"
 }
 
 install_autostart_entry() {
@@ -251,9 +394,12 @@ main() {
     require_command id
     require_command install
     require_command mktemp
+    require_command awk
     require_command tail
     detect_browser
     validate_inputs
+    configure_hosts_alias
+    import_caddy_root_certificate
     install_autostart_entry
     install_desktop_shortcut
 }

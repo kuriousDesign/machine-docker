@@ -369,6 +369,19 @@ Add a hosts entry on each client machine that should reach the broker:
 10.70.70.50 apollo-00225
 ```
 
+If a dedicated client should reach the IPC over its machine-side NIC instead of VPN or DNS, point that alias at the IPC NIC directly and import the bundled Caddy root certificate into the browser profile:
+
+```bash
+chmod +x ./setup/chrome-ui-autostart.sh
+sudo ./setup/chrome-ui-autostart.sh \
+    --user apollo \
+    --url http://apollo-00225:3000/ \
+    --host-alias apollo-00225 \
+    --host-ip 192.168.102.1
+```
+
+That command updates `/etc/hosts`, imports `certs/caddy-local-root.crt` into the target user's NSS trust store for Chrome/Chromium, and installs the persistent desktop autostart entry.
+
 Copy the generated root certificate into the repo for distribution:
 
 ```bash
