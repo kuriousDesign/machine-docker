@@ -5,11 +5,40 @@ This guide documents the setup used on the IPC for Docker-based deployment of th
 ## 1. Prerequisites
 
 1. Install Docker Engine and the Docker Compose plugin on the IPC.
+
+This repo includes a setup script at [setup/docker-install.sh](setup/docker-install.sh).
+
+Example:
+
+```bash
+chmod +x ./setup/docker-install.sh
+sudo ./setup/docker-install.sh --user apollo
+```
+
+If you need the optional compatibility package for older Docker Desktop integrations, use:
+
+```bash
+sudo ./setup/docker-install.sh --user apollo --with-docker-desktop-compat
+```
+
+Notes:
+
+- this installs Docker Engine inside the current Ubuntu environment using Docker's official apt repository
+- if you're in WSL and `docker` is missing because Docker Desktop integration is disabled, this installs Docker directly inside the distro instead
+- after the script adds a user to the `docker` group, open a new login shell or sign out and back in
+- if systemd is not active in the target environment, Docker may install successfully without auto-starting the daemon
+
 2. Confirm Docker is available:
 
 ```bash
 docker --version
 docker compose version
+```
+
+Then verify the stack command from this repo:
+
+```bash
+docker compose up -d mqtt
 ```
 
 ## 2. Configure GitHub Authentication For `apollo`
@@ -65,6 +94,21 @@ cd /opt/repos/machine-docker
 ```bash
 git submodule update --remote --init --recursive
 ```
+
+If you need the Node.js toolchain used by the UI and bridge repos, this repo includes [setup/node-install.sh](setup/node-install.sh).
+
+Example:
+
+```bash
+chmod +x ./setup/node-install.sh
+sudo ./setup/node-install.sh --user apollo-admin --node-version v22.21.1
+```
+
+Notes:
+
+- this installs `nvm` into the target user's home directory and sets Node.js `v22.21.1` as the default version
+- both `machine-bridge` and `machine-ui-heroui-shadcn` currently declare support for Node.js `>=22.16.0 <23`, so `v22.21.1` fits that range
+- after installation, open a new shell or run `source ~/.bashrc` as the target user before using `node`, `npm`, or `nvm`
 
 ## 4. Refresh Docker Group Access
 
