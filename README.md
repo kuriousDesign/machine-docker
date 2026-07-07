@@ -35,11 +35,6 @@ docker --version
 docker compose version
 ```
 
-Then verify the stack command from this repo:
-
-```bash
-docker compose up -d mqtt
-```
 
 ## 2. Configure GitHub Authentication For `apollo`
 
@@ -101,7 +96,7 @@ Example:
 
 ```bash
 chmod +x ./setup/node-install.sh
-sudo ./setup/node-install.sh --user apollo-admin --node-version v22.21.1
+sudo ./setup/node-install.sh --user apollo --node-version v22.21.1
 ```
 
 Notes:
@@ -180,7 +175,7 @@ Example for the current IPC layout:
 
 ```bash
 chmod +x ./setup/ethercat-network-tuning.sh
-sudo bash ./setup/ethercat-network-tuning.sh --nic enp2s0 --cpu 3
+sudo bash ./setup/ethercat-network-tuning.sh --nic enp3s0 --cpu 3
 ```
 
 Defaults:
@@ -188,7 +183,6 @@ Defaults:
 - NIC: `enp3s0`
 - CPU: `3`
 
-For this IPC, use `enp2s0`.
 
 The script prints the live NIC state after installation so you can confirm queue count, coalescing, offload state, qdisc, and IRQ placement.
 
@@ -275,29 +269,6 @@ sudo -n /usr/local/sbin/machine-ui-reset-build-cache
 
 That helper removes and recreates `/opt/repos/machine-ui-heroui-shadcn/.next` with the correct ownership for the configured Linux user.
 
-## 10. Configure UI Chrome Autostart
-
-This repo includes a setup script at [setup/chrome-ui-autostart.sh](setup/chrome-ui-autostart.sh).
-
-Use it to install a per-user GNOME autostart entry and a desktop launcher that open Chrome to the machine UI.
-
-Example for the current IPC:
-
-```bash
-chmod +x ./setup/chrome-ui-autostart.sh
-sudo ./setup/chrome-ui-autostart.sh --user apollo --url http://apollo-00251:3000
-```
-
-Notes:
-
-- The script defaults to the `apollo` user if `--user` is omitted.
-- Pass the exact UI URL you want the operator session to open at login.
-- The script also adds a clickable desktop icon for the target user.
-- Chrome launches in fullscreen mode for the UI session.
-- The launcher also disables common Chrome startup prompts such as first-run, default-browser, crash-recovery, and other modal error dialogs.
-- The launcher uses `--password-store=basic` so Chrome does not prompt to unlock the GNOME keyring on autologin.
-- Chrome is auto-detected from `google-chrome-stable`, `google-chrome`, `chromium-browser`, or `chromium` unless `--browser` is supplied.
-
 ## 11. Launch Only `mqtt` And `mongodb`
 
 These services use published images, so there is no local build step.
@@ -341,9 +312,9 @@ Example for machine `00225`:
 ```bash
 chmod +x ./setup/kiosk-ui-client.sh
 sudo ./setup/kiosk-ui-client.sh \
-    --machine-id 00225 \
-    --host-ip 192.168.102.1 \
-    --url http://apollo-00225:3000/
+    --machine-id 00254 \
+    --host-ip 127.0.0.1 \
+    --url http://127.0.0.1:3000/
 ```
 
 Notes:
@@ -356,9 +327,6 @@ Notes:
 - The generated Openbox autostart launches Chromium with the kiosk flags requested for the machine UI.
 
 ## 14. Configure Local MQTT WSS Hostname
-
-
-
 This stack can expose the local broker to browser clients through `caddy`, which terminates TLS and proxies `wss` traffic to Mosquitto on `127.0.0.1:9002`.
 
 1. Create a repo `.env` file from `.env.example` if one does not exist.
@@ -483,11 +451,6 @@ sudo -n /usr/local/sbin/codesys-control-log-tail
 sudo -n /usr/local/sbin/codesys-control-action restart
 ```
 
-For Chrome UI autostart validation:
-
-```bash
-sudo cat /home/apollo/.config/autostart/machine-ui-chrome.desktop
-```
 
 ## 14. Useful Operations
 
@@ -499,7 +462,7 @@ docker exec -it mongo sh -c 'exec mongodump --archive --gzip' > mongo_backup.gz
 
 ### Remote IPC
 
-- IP: `10.70.70.50`
+- IP: `10.70.70.XXX`
 - User: `apollo`
 
 ### Copy local SSH public key to remote IPC from Windows
