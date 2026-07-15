@@ -21,6 +21,8 @@ Installs a narrow sudoers rule and root-owned helper commands so the UI can:
 - start, stop, and restart codesyscontrol
 - tail the approved CODESYS runtime log
 - reset the generated machine-ui build cache directory when container runs leave it root-owned
+- repair the machine-ui node_modules ownership when npm install was run as root or from a container
+- repair the generated next-env.d.ts file when Next.js tries to rewrite it as a root-owned file
 - set the target user's global Git username and email
 
 without granting broad sudo access to the application user.
@@ -160,7 +162,15 @@ set -euo pipefail
 rm -rf "${UI_REPO_DIR}/.next"
 install -d -m 775 -o "${TARGET_USER}" -g "${target_group}" "${UI_REPO_DIR}/.next"
 
-echo "Reset machine-ui build cache at ${UI_REPO_DIR}/.next for ${TARGET_USER}:${target_group}"
+if [[ -d "${UI_REPO_DIR}/node_modules" ]]; then
+    chown -R "${TARGET_USER}:${target_group}" "${UI_REPO_DIR}/node_modules"
+fi
+
+    if [[ -e "${UI_REPO_DIR}/next-env.d.ts" ]]; then
+        chown "${TARGET_USER}:${target_group}" "${UI_REPO_DIR}/next-env.d.ts"
+    fi
+
+echo "Reset machine-ui build cache at ${UI_REPO_DIR}/.next and repaired node_modules/next-env.d.ts ownership for ${TARGET_USER}:${target_group}"
 EOF
 
     chmod 755 "$action_script" "$log_script" "$ui_reset_script"

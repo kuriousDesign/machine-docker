@@ -84,11 +84,7 @@ git -C /opt/repos clone https://github.com/kuriousDesign/machine-docker.git
 cd /opt/repos/machine-docker
 ```
 
-2. Pull submodules if needed:
-
-```bash
-git submodule update --remote --init --recursive
-```
+2. Install Node
 
 If you need the Node.js toolchain used by the UI and bridge repos, this repo includes [setup/node-install.sh](setup/node-install.sh).
 
@@ -267,7 +263,7 @@ After installation, the target user can run:
 sudo -n /usr/local/sbin/machine-ui-reset-build-cache
 ```
 
-That helper removes and recreates `/opt/repos/machine-ui-heroui-shadcn/.next` with the correct ownership for the configured Linux user.
+That helper removes and recreates `/opt/repos/machine-ui-heroui-shadcn/.next` with the correct ownership for the configured Linux user, and it also repairs `/opt/repos/machine-ui-heroui-shadcn/node_modules` and `/opt/repos/machine-ui-heroui-shadcn/next-env.d.ts` ownership if a container or root-owned run leaves them inaccessible.
 
 ## 11. Launch Only `mqtt` And `mongodb`
 
