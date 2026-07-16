@@ -303,7 +303,7 @@ The script will:
 - install an Xorg dummy display automatically when no display hardware is detected, unless you explicitly disable that behavior
 - restart LightDM and print verification output including `loginctl`, the final autostart file, and the running Chromium command line
 
-Example for machine `00225`:
+Example for machine `00254`:
 
 ```bash
 cd /opt/repos/machine-docker

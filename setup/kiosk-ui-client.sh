@@ -19,6 +19,7 @@ DUMMY_XORG_CONF_FILE="${XORG_CONF_DIR}/20-kiosk-dummy.conf"
 CHROMIUM_WRAPPER_PATH="/usr/local/bin/chromium-browser"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CADDY_ROOT_CERT_FALLBACK="${REPO_ROOT}/certs/caddy-local-root.crt"
+KIOSK_DISPLAY_ROTATE_HELPER_PATH=""
 
 DISPLAY_BACKEND="unknown"
 LOGINCTL_REPORT=""
@@ -405,22 +406,52 @@ configure_openbox_autostart() {
     local user_home
     local group_name
     local autostart_file
+    local rotate_helper_file
 
     user_home="$(resolve_user_home)"
     group_name="$(id -gn "$TARGET_USER")"
     autostart_file="${user_home}/.config/openbox/autostart"
+    rotate_helper_file="${user_home}/.config/openbox/kiosk-rotate-display.sh"
+
+    cat >"$rotate_helper_file" <<EOF
+#!/usr/bin/env bash
+set -u
+
+export DISPLAY=${DISPLAY_NAME}
+export XAUTHORITY=${user_home}/.Xauthority
+
+sleep 2
+
+while true; do
+    kiosk_output="\$(xrandr --display ${DISPLAY_NAME} --query 2>/dev/null | awk '/ connected/ { if (\$1 ~ /^HDMI/) { print \$1; exit } if (!fallback) fallback = \$1 } END { if (fallback) print fallback }')"
+
+    if [[ -n "\$kiosk_output" ]]; then
+        if xrandr --display ${DISPLAY_NAME} --output "\$kiosk_output" --auto --rotate ${DISPLAY_ROTATION}; then
+            exit 0
+        fi
+    fi
+
+    sleep 1
+done
+
+echo "Unable to find a connected X11 output to rotate." >&2
+exit 1
+EOF
+
+    chmod 755 "$rotate_helper_file"
+    chown "$TARGET_USER":"$group_name" "$rotate_helper_file"
+    KIOSK_DISPLAY_ROTATE_HELPER_PATH="$rotate_helper_file"
 
     cat >"$autostart_file" <<EOF
 #!/usr/bin/env bash
 export DISPLAY=${DISPLAY_NAME}
 export XAUTHORITY=${user_home}/.Xauthority
 
-if command -v xrandr >/dev/null 2>&1; then
-    kiosk_output="\$(xrandr --display ${DISPLAY_NAME} --query 2>/dev/null | awk '/ connected/{print \$1; exit}')"
-
-    if [[ -n "\$kiosk_output" ]]; then
-        xrandr --display ${DISPLAY_NAME} --output "\$kiosk_output" --rotate ${DISPLAY_ROTATION} || true
-    fi
+if [ -x "${KIOSK_DISPLAY_ROTATE_HELPER_PATH}" ]; then
+    (
+        sleep 10
+        "${KIOSK_DISPLAY_ROTATE_HELPER_PATH}"
+    ) >/tmp/kiosk-rotate-display.log 2>&1 &
 fi
 
 xset s off
