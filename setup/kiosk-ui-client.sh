@@ -9,6 +9,7 @@ HOST_IP="${HOST_IP:-192.168.102.1}"
 UI_URL="${UI_URL:-}"
 DISPLAY_NAME="${DISPLAY_NAME:-:0}"
 DUMMY_DISPLAY_MODE="${DUMMY_DISPLAY_MODE:-auto}"
+DISPLAY_ROTATION="${DISPLAY_ROTATION:-normal}"
 
 LIGHTDM_CONF_DIR="/etc/lightdm/lightdm.conf.d"
 LIGHTDM_CONF_FILE="${LIGHTDM_CONF_DIR}/50-machine-kiosk.conf"
@@ -37,6 +38,7 @@ Options:
     --url <http-url>             URL to open in Chromium (default: http://<prefix>-<machine-id>:3000/)
   --display <display>          X11 display name to target (default: ${DISPLAY_NAME})
   --dummy-display <mode>       One of auto, always, never (default: ${DUMMY_DISPLAY_MODE})
+    --portrait                   Rotate the kiosk display into portrait mode
   --help                       Show this message
 
 Environment overrides:
@@ -47,6 +49,7 @@ Environment overrides:
   UI_URL=<http-url>
   DISPLAY_NAME=<display>
   DUMMY_DISPLAY_MODE=<auto|always|never>
+    DISPLAY_ROTATION=<normal|right>
 EOF
 }
 
@@ -97,6 +100,10 @@ parse_args() {
                 DUMMY_DISPLAY_MODE="$2"
                 shift 2
                 ;;
+            --portrait)
+                DISPLAY_ROTATION="right"
+                shift 1
+                ;;
             --help|-h)
                 usage
                 exit 0
@@ -128,6 +135,11 @@ validate_inputs() {
 
     if [[ "$DUMMY_DISPLAY_MODE" != "auto" && "$DUMMY_DISPLAY_MODE" != "always" && "$DUMMY_DISPLAY_MODE" != "never" ]]; then
         echo "--dummy-display must be one of auto, always, never. Got: $DUMMY_DISPLAY_MODE" >&2
+        exit 1
+    fi
+
+    if [[ "$DISPLAY_ROTATION" != "normal" && "$DISPLAY_ROTATION" != "right" ]]; then
+        echo "DISPLAY_ROTATION must be one of normal or right. Got: $DISPLAY_ROTATION" >&2
         exit 1
     fi
 
@@ -399,6 +411,18 @@ configure_openbox_autostart() {
     autostart_file="${user_home}/.config/openbox/autostart"
 
     cat >"$autostart_file" <<EOF
+#!/usr/bin/env bash
+export DISPLAY=${DISPLAY_NAME}
+export XAUTHORITY=${user_home}/.Xauthority
+
+if command -v xrandr >/dev/null 2>&1; then
+    kiosk_output="\$(xrandr --display ${DISPLAY_NAME} --query 2>/dev/null | awk '/ connected/{print \$1; exit}')"
+
+    if [[ -n "\$kiosk_output" ]]; then
+        xrandr --display ${DISPLAY_NAME} --output "\$kiosk_output" --rotate ${DISPLAY_ROTATION} || true
+    fi
+fi
+
 xset s off
 xset -dpms
 xset s noblank

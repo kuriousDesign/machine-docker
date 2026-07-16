@@ -306,11 +306,13 @@ The script will:
 Example for machine `00225`:
 
 ```bash
+cd /opt/repos/machine-docker
 chmod +x ./setup/kiosk-ui-client.sh
 sudo ./setup/kiosk-ui-client.sh \
     --machine-id 00254 \
     --host-ip 127.0.0.1 \
-    --url http://127.0.0.1:3000/
+    --url http://127.0.0.1:3000/ \
+    --portrait
 ```
 
 Notes:
@@ -320,6 +322,7 @@ Notes:
 - The default display is `:0`.
 - The default dummy display mode is `auto`, which installs an Xorg dummy display if no connected local display hardware is detected.
 - If you want the script to fail instead of configuring a dummy display, pass `--dummy-display never`.
+- Pass `--portrait` to rotate the kiosk display into portrait mode before Chromium starts.
 - The generated Openbox autostart launches Chromium with the kiosk flags requested for the machine UI.
 
 ## 14. Configure Local MQTT WSS Hostname
