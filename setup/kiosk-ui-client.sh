@@ -189,6 +189,7 @@ install_packages() {
         xauth
         xinit
         x11-xserver-utils
+        xinput
         xserver-xorg-core
         xserver-xorg-input-libinput
     )
@@ -420,6 +421,32 @@ set -u
 export DISPLAY=${DISPLAY_NAME}
 export XAUTHORITY=${user_home}/.Xauthority
 
+apply_touchscreen_transform() {
+    local applied_any="false"
+    local transform_matrix
+    local touch_device
+
+    case "${DISPLAY_ROTATION}" in
+        right)
+            transform_matrix="0 1 0 -1 0 1 0 0 1"
+            ;;
+        *)
+            transform_matrix="1 0 0 0 1 0 0 0 1"
+            ;;
+    esac
+
+    while IFS= read -r touch_device; do
+        [[ -z "\$touch_device" ]] && continue
+
+        if xinput set-prop "\$touch_device" "Coordinate Transformation Matrix" \${transform_matrix} >/dev/null 2>&1 || \
+            xinput set-prop "\$touch_device" "libinput Calibration Matrix" \${transform_matrix} >/dev/null 2>&1; then
+            applied_any="true"
+        fi
+    done < <(xinput list --name-only 2>/dev/null | awk 'tolower(\$0) ~ /(touch|digitizer|cooltouch|weida)/ { print }')
+
+    [[ "\$applied_any" == "true" ]]
+}
+
 sleep 2
 
 while true; do
@@ -427,7 +454,9 @@ while true; do
 
     if [[ -n "\$kiosk_output" ]]; then
         if xrandr --display ${DISPLAY_NAME} --output "\$kiosk_output" --auto --rotate ${DISPLAY_ROTATION}; then
-            exit 0
+            if apply_touchscreen_transform; then
+                exit 0
+            fi
         fi
     fi
 
@@ -449,7 +478,6 @@ export XAUTHORITY=${user_home}/.Xauthority
 
 if [ -x "${KIOSK_DISPLAY_ROTATE_HELPER_PATH}" ]; then
     (
-        sleep 10
         "${KIOSK_DISPLAY_ROTATE_HELPER_PATH}"
     ) >/tmp/kiosk-rotate-display.log 2>&1 &
 fi
@@ -457,7 +485,7 @@ fi
 xset s off
 xset -dpms
 xset s noblank
-unclutter -idle 1 &
+unclutter -idle 0 -reset -root &
 
 chromium-browser \\
   --kiosk \\
