@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-TARGET_USER="${TARGET_USER:-kiosk}"
+TARGET_USER="${TARGET_USER:-}"
 MACHINE_ID="${MACHINE_ID:-00225}"
 HOST_PREFIX="${HOST_PREFIX:-apollo}"
 HOST_IP="${HOST_IP:-192.168.102.1}"
@@ -10,6 +10,8 @@ UI_URL="${UI_URL:-}"
 DISPLAY_NAME="${DISPLAY_NAME:-:0}"
 DUMMY_DISPLAY_MODE="${DUMMY_DISPLAY_MODE:-auto}"
 DISPLAY_ROTATION="${DISPLAY_ROTATION:-normal}"
+PURGE_OTHER_DISPLAY_MANAGERS="${PURGE_OTHER_DISPLAY_MANAGERS:-0}"
+SKIP_HOSTS_ALIAS="${SKIP_HOSTS_ALIAS:-0}"
 
 LIGHTDM_CONF_DIR="/etc/lightdm/lightdm.conf.d"
 LIGHTDM_CONF_FILE="${LIGHTDM_CONF_DIR}/50-machine-kiosk.conf"
@@ -32,14 +34,17 @@ Usage: sudo ./setup/kiosk-ui-client.sh [options]
 Sets up a persistent X11 kiosk client using LightDM autologin, Openbox, and Chromium.
 
 Options:
-  --user <linux-user>           Kiosk user account (default: ${TARGET_USER})
-  --machine-id <id>            Machine ID used to derive the hostname (default: ${MACHINE_ID})
-  --host-prefix <prefix>       Hostname prefix (default: ${HOST_PREFIX})
+    --user <linux-user>           Kiosk user account (required)
+    --machine-id <id>            Machine ID used to derive the hosts-file alias (default: ${MACHINE_ID})
+    --host-prefix <prefix>       Hosts-file alias prefix (default: ${HOST_PREFIX})
   --host-ip <ipv4>             IP address mapped in /etc/hosts (default: ${HOST_IP})
     --url <http-url>             URL to open in Chromium (default: http://<prefix>-<machine-id>:3000/)
   --display <display>          X11 display name to target (default: ${DISPLAY_NAME})
   --dummy-display <mode>       One of auto, always, never (default: ${DUMMY_DISPLAY_MODE})
+    --purge-display-managers     Purge gdm3 and sddm after LightDM is configured
+    --skip-hosts-alias           Do not write an apollo-style alias into /etc/hosts
     --portrait                   Rotate the kiosk display into portrait mode
+        --portrait-180               Rotate the kiosk display into upside-down portrait mode
   --help                       Show this message
 
 Environment overrides:
@@ -50,7 +55,12 @@ Environment overrides:
   UI_URL=<http-url>
   DISPLAY_NAME=<display>
   DUMMY_DISPLAY_MODE=<auto|always|never>
-    DISPLAY_ROTATION=<normal|right>
+        DISPLAY_ROTATION=<normal|right|left>
+    PURGE_OTHER_DISPLAY_MANAGERS=1
+    SKIP_HOSTS_ALIAS=1
+
+Notes:
+- this script does not rename the machine hostname; it only configures LightDM autologin and an optional /etc/hosts alias
 EOF
 }
 
@@ -101,8 +111,20 @@ parse_args() {
                 DUMMY_DISPLAY_MODE="$2"
                 shift 2
                 ;;
+            --purge-display-managers)
+                PURGE_OTHER_DISPLAY_MANAGERS="1"
+                shift 1
+                ;;
+            --skip-hosts-alias)
+                SKIP_HOSTS_ALIAS="1"
+                shift 1
+                ;;
             --portrait)
                 DISPLAY_ROTATION="right"
+                shift 1
+                ;;
+            --portrait-180)
+                DISPLAY_ROTATION="left"
                 shift 1
                 ;;
             --help|-h)
@@ -119,6 +141,12 @@ parse_args() {
 }
 
 validate_inputs() {
+    if [[ -z "$TARGET_USER" ]]; then
+        echo "Missing required --user <linux-user> argument or TARGET_USER environment variable." >&2
+        usage >&2
+        exit 1
+    fi
+
     if [[ ! "$MACHINE_ID" =~ ^[0-9]+$ ]]; then
         echo "Machine ID must contain only digits. Got: $MACHINE_ID" >&2
         exit 1
@@ -139,8 +167,18 @@ validate_inputs() {
         exit 1
     fi
 
-    if [[ "$DISPLAY_ROTATION" != "normal" && "$DISPLAY_ROTATION" != "right" ]]; then
-        echo "DISPLAY_ROTATION must be one of normal or right. Got: $DISPLAY_ROTATION" >&2
+    if [[ "$DISPLAY_ROTATION" != "normal" && "$DISPLAY_ROTATION" != "right" && "$DISPLAY_ROTATION" != "left" ]]; then
+        echo "DISPLAY_ROTATION must be one of normal, right, or left. Got: $DISPLAY_ROTATION" >&2
+        exit 1
+    fi
+
+    if [[ "$PURGE_OTHER_DISPLAY_MANAGERS" != "0" && "$PURGE_OTHER_DISPLAY_MANAGERS" != "1" ]]; then
+        echo "PURGE_OTHER_DISPLAY_MANAGERS must be 0 or 1. Got: $PURGE_OTHER_DISPLAY_MANAGERS" >&2
+        exit 1
+    fi
+
+    if [[ "$SKIP_HOSTS_ALIAS" != "0" && "$SKIP_HOSTS_ALIAS" != "1" ]]; then
+        echo "SKIP_HOSTS_ALIAS must be 0 or 1. Got: $SKIP_HOSTS_ALIAS" >&2
         exit 1
     fi
 
@@ -258,6 +296,11 @@ configure_hosts_alias() {
     local alias_name
     local temp_file
 
+    if [[ "$SKIP_HOSTS_ALIAS" == "1" ]]; then
+        echo "Skipping /etc/hosts alias configuration; machine hostname is unchanged."
+        return
+    fi
+
     alias_name="${HOST_PREFIX}-${MACHINE_ID}"
     temp_file="$(mktemp)"
 
@@ -297,6 +340,30 @@ configure_hosts_alias() {
     rm -f "$temp_file"
 
     echo "Configured hostname alias: ${alias_name} -> ${HOST_IP}"
+}
+
+purge_conflicting_display_managers() {
+    local package_name
+    local purged_any="0"
+
+    if [[ "$PURGE_OTHER_DISPLAY_MANAGERS" != "1" ]]; then
+        return
+    fi
+
+    for package_name in gdm3 sddm; do
+        if dpkg-query -W -f='${Status}' "$package_name" 2>/dev/null | grep -q '^install ok installed$'; then
+            systemctl disable --now "$package_name" >/dev/null 2>&1 || true
+            apt-get purge -y "$package_name"
+            purged_any="1"
+        fi
+    done
+
+    if [[ "$purged_any" == "1" ]]; then
+        apt-get autoremove -y --purge
+        echo "Purged conflicting display managers after switching to LightDM."
+    else
+        echo "No conflicting display managers were installed."
+    fi
 }
 
 configure_dummy_display_if_needed() {
@@ -423,12 +490,17 @@ export XAUTHORITY=${user_home}/.Xauthority
 
 apply_touchscreen_transform() {
     local applied_any="false"
+    local output_name="\${1:-}"
+    local mapped_output="false"
     local transform_matrix
     local touch_device
 
     case "${DISPLAY_ROTATION}" in
         right)
             transform_matrix="0 1 0 -1 0 1 0 0 1"
+            ;;
+        left)
+            transform_matrix="0 -1 1 1 0 0 0 0 1"
             ;;
         *)
             transform_matrix="1 0 0 0 1 0 0 0 1"
@@ -438,11 +510,26 @@ apply_touchscreen_transform() {
     while IFS= read -r touch_device; do
         [[ -z "\$touch_device" ]] && continue
 
+        if [[ -n "\$output_name" ]]; then
+            if xinput map-to-output "\$touch_device" "\$output_name" >/dev/null 2>&1; then
+                xinput set-prop "\$touch_device" "libinput Calibration Matrix" 1 0 0 0 1 0 0 0 1 >/dev/null 2>&1 || true
+                applied_any="true"
+                mapped_output="true"
+            fi
+
+            continue
+        fi
+
         if xinput set-prop "\$touch_device" "Coordinate Transformation Matrix" \${transform_matrix} >/dev/null 2>&1 || \
             xinput set-prop "\$touch_device" "libinput Calibration Matrix" \${transform_matrix} >/dev/null 2>&1; then
             applied_any="true"
         fi
     done < <(xinput list --name-only 2>/dev/null | awk 'tolower(\$0) ~ /(touch|digitizer|cooltouch|weida)/ { print }')
+
+    if [[ -n "\$output_name" ]]; then
+        [[ "\$mapped_output" == "true" ]]
+        return
+    fi
 
     [[ "\$applied_any" == "true" ]]
 }
@@ -454,7 +541,7 @@ while true; do
 
     if [[ -n "\$kiosk_output" ]]; then
         if xrandr --display ${DISPLAY_NAME} --output "\$kiosk_output" --auto --rotate ${DISPLAY_ROTATION}; then
-            if apply_touchscreen_transform; then
+            if apply_touchscreen_transform "\$kiosk_output"; then
                 exit 0
             fi
         fi
@@ -667,7 +754,9 @@ main() {
     require_command awk
     require_command curl
     require_command debconf-set-selections
+    require_command dpkg-query
     require_command getent
+    require_command grep
     require_command install
     require_command loginctl
     require_command mktemp
@@ -682,6 +771,7 @@ main() {
     configure_hosts_alias
     configure_dummy_display_if_needed
     configure_lightdm_autologin
+    purge_conflicting_display_managers
     configure_openbox_autostart
     import_caddy_root_certificate
     restart_display_manager

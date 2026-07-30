@@ -121,12 +121,21 @@ If that still does not apply, log out of the `apollo` session and sign back in.
 
 ## 5. Prepare Local Directories
 
-1. Create the recordings directory used by the stack:
+1. Create the recordings directory used by the stack on the larger recordings partition:
 
 ```bash
-sudo mkdir -p /opt/recordings
-sudo chmod 777 /opt/recordings
+sudo mkdir -p /recordings_drive
+sudo chmod 777 /recordings_drive
 ```
+
+2. Make sure `machine-ui` and `machine-vision` point at the same root:
+
+```bash
+grep RECORDINGS_DIR /opt/repos/machine-vision/.env
+grep NEXT_PUBLIC_RECORDINGS_DIR /opt/repos/machine-ui-heroui-shadcn/.env.local
+```
+
+Both should resolve to `/recordings_drive`.
 
 ## 6. Apply Disk Management And Docker Log Controls
 
@@ -298,10 +307,11 @@ The script will:
 - configure LightDM autologin for that user
 - write `/home/kiosk/.config/openbox/autostart`
 - disable screen blanking, DPMS, and screensaver
-- map `apollo-<machine-id>` to the target UI IP in `/etc/hosts`
+- optionally map `apollo-<machine-id>` to the target UI IP in `/etc/hosts`
 - detect whether the machine has a real display connected
 - install an Xorg dummy display automatically when no display hardware is detected, unless you explicitly disable that behavior
 - restart LightDM and print verification output including `loginctl`, the final autostart file, and the running Chromium command line
+- optionally purge `gdm3` and `sddm` after LightDM is configured
 
 Example for machine `00254`:
 
@@ -309,23 +319,75 @@ Example for machine `00254`:
 cd /opt/repos/machine-docker
 chmod +x ./setup/kiosk-ui-client.sh
 sudo ./setup/kiosk-ui-client.sh \
+    --user apollo-admin \
     --machine-id 00254 \
     --host-ip 127.0.0.1 \
     --url http://127.0.0.1:3000/ \
     --portrait
 ```
 
+If the panel is installed in the opposite portrait orientation, use `--portrait-180` instead.
+
+Example for this IPC when you want to keep the existing `apollo-admin` Linux
+account, keep the machine hostname unchanged, avoid creating an `apollo-*`
+hosts alias, and remove GNOME/SDDM after the LightDM cutover:
+
+```bash
+cd /opt/repos/machine-docker
+chmod +x ./setup/kiosk-ui-client.sh
+sudo ./setup/kiosk-ui-client.sh \
+    --user apollo-admin \
+    --machine-id 00251 \
+    --url http://127.0.0.1:3000/ \
+    --skip-hosts-alias \
+    --purge-display-managers
+```
+
 Notes:
 
 - This script targets a LightDM + Openbox X11 kiosk session, not GNOME.
-- The default kiosk user is `kiosk`.
+- `--user <linux-user>` is required so commissioning does not accidentally create or switch to an unintended account.
 - The default display is `:0`.
 - The default dummy display mode is `auto`, which installs an Xorg dummy display if no connected local display hardware is detected.
 - If you want the script to fail instead of configuring a dummy display, pass `--dummy-display never`.
 - Pass `--portrait` to rotate the kiosk display into portrait mode before Chromium starts.
+- Pass `--portrait-180` to rotate the kiosk display into the opposite portrait orientation before Chromium starts.
 - The generated Openbox autostart launches Chromium with the kiosk flags requested for the machine UI.
+- The script does not rename the machine hostname; it only configures LightDM autologin and an optional hosts-file alias.
 
-## 14. Configure Local MQTT WSS Hostname
+## 14. Harden Startup For Offline Operation
+
+This repo includes a setup script at [setup/offline-startup-hardening.sh](setup/offline-startup-hardening.sh).
+
+Use it on kiosk or air-gapped machines to disable the internet-facing services
+that were most likely to delay or clutter startup during our audit:
+
+- `NetworkManager-wait-online.service`
+- `systemd-networkd-wait-online.service`
+- `apt-daily*` timers and services
+- `ua-timer.timer` and `ua-reboot-cmds.service`
+- `apport.service` and `kerneloops.service`
+- `fwupd-refresh.*`
+
+Example:
+
+```bash
+cd /opt/repos/machine-docker
+chmod +x ./setup/offline-startup-hardening.sh
+sudo ./setup/offline-startup-hardening.sh
+```
+
+Optional flags:
+
+- `--disable-snapd` if the machine no longer depends on any snap-managed software
+- `--disable-remote-access` if you want to stop `rustdesk` and `gnome-remote-desktop`
+
+Notes:
+
+- This script leaves the local runtime stack enabled: `docker`, `containerd`, `codesyscontrol`, and `codesysedge`.
+- Docker containers in this repo already use `restart: unless-stopped`, so once the images are present locally they can restart without internet access.
+
+## 15. Configure Local MQTT WSS Hostname
 This stack can expose the local broker to browser clients through `caddy`, which terminates TLS and proxies `wss` traffic to Mosquitto on `127.0.0.1:9002`.
 
 1. Create a repo `.env` file from `.env.example` if one does not exist.
