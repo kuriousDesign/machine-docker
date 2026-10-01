@@ -34,6 +34,22 @@ services:
       - mongo_data:/data/db
     restart: unless-stopped
 
+  cognex-ftp:
+    image: fauria/vsftpd
+    container_name: cognex-ftp
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      FTP_USER: cognex
+      FTP_PASS: cognex
+      PASV_ADDRESS: 192.168.103.1
+      PASV_MIN_PORT: 21100
+      PASV_MAX_PORT: 21110
+      LOCAL_UMASK: 022
+      FILE_OPEN_MODE: 0666
+    volumes:
+      - ${COGNEX_FTP_UPLOAD_DIR}:/home/vsftpd/cognex
+
 volumes:
   caddy_data:
   caddy_config:

@@ -137,6 +137,16 @@ grep NEXT_PUBLIC_RECORDINGS_DIR /opt/repos/machine-ui-heroui-shadcn/.env.local
 
 Both should resolve to `/recordings_drive`.
 
+3. Create the directory used by the Cognex FTP upload service:
+
+```bash
+sudo mkdir -p /recordings_drive/cognex-ftp
+sudo chmod 777 /recordings_drive/cognex-ftp
+```
+
+The machine-level Docker stack can expose an FTP endpoint for Cognex In-Sight image uploads.
+The default upload root is `/recordings_drive/cognex-ftp`, configured through `COGNEX_FTP_UPLOAD_DIR` in `.env`.
+
 ## 6. Apply Disk Management And Docker Log Controls
 
 This repo includes a machine setup script at [setup/disk-management.sh](setup/disk-management.sh).
@@ -428,6 +438,7 @@ That script adds or updates a hosts entry in the form:
 ```
 
 For this IPC, use `00225` so the local alias becomes `apollo-00225`.
+
 
 Start the proxy with:
 
