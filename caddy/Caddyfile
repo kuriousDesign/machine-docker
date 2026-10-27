@@ -1,4 +1,21 @@
 {$MQTT_WSS_HOSTNAME} {
-    tls internal
-    reverse_proxy 127.0.0.1:9002
+	tls internal
+	reverse_proxy 127.0.0.1:9002
+}
+
+http://localhost:3000, http://127.0.0.1:3000, http://10.70.70.103:3000, http://192.168.103.1:3000 {
+	bind 127.0.0.1 ::1 10.70.70.103 192.168.103.1
+	@cognex_websocket path /ws
+	handle @cognex_websocket {
+		reverse_proxy 192.168.103.12:8087
+	}
+	@cognex_image path /sys/img/*
+	handle @cognex_image {
+		reverse_proxy 192.168.103.12:8087 {
+			header_up Host 192.168.103.12:8087
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3001
+	}
 }
