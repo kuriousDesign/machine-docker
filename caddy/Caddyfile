@@ -19,3 +19,28 @@ http://localhost:3000, http://127.0.0.1:3000, http://10.70.70.103:3000, http://1
 		reverse_proxy 127.0.0.1:3001
 	}
 }
+
+# Camera streams hosted on the second vision IPC. The browser requests
+# <hostname>:<port>/stream, so forward these ports from this IPC. The
+# stream-only service here only serves camera 0 (port 8000).
+(vision_stream_proxy) {
+	bind 127.0.0.1 ::1 10.70.70.103 192.168.103.1
+	reverse_proxy {args[0]} {
+		flush_interval -1
+		transport http {
+			response_header_timeout 0
+		}
+	}
+}
+
+http://:8001 {
+	import vision_stream_proxy 192.168.103.13:8001
+}
+
+http://:8002 {
+	import vision_stream_proxy 192.168.103.13:8002
+}
+
+http://:8003 {
+	import vision_stream_proxy 192.168.103.13:8003
+}
