@@ -317,6 +317,7 @@ The script will:
 - configure LightDM autologin for that user
 - write `/home/kiosk/.config/openbox/autostart`
 - disable screen blanking, DPMS, and screensaver
+- install Chrome/Chromium managed policies (`/etc/opt/chrome/policies/managed/`, `/etc/chromium/policies/managed/`, `/etc/chromium-browser/policies/managed/`) that turn off the password manager save prompts and address/card autofill
 - optionally map `apollo-<machine-id>` to the target UI IP in `/etc/hosts`
 - detect whether the machine has a real display connected
 - install an Xorg dummy display automatically when no display hardware is detected, unless you explicitly disable that behavior
@@ -464,7 +465,7 @@ sudo ./setup/chrome-ui-autostart.sh \
     --host-ip 192.168.102.1
 ```
 
-That command updates `/etc/hosts`, imports `certs/caddy-local-root.crt` into the target user's NSS trust store for Chrome/Chromium, and installs the persistent desktop autostart entry.
+That command updates `/etc/hosts`, imports `certs/caddy-local-root.crt` into the target user's NSS trust store for Chrome/Chromium, installs managed browser policies that disable the password manager and autofill, and installs the persistent desktop autostart entry. Verify the policies at `chrome://policy`.
 
 Copy the generated root certificate into the repo for distribution:
 

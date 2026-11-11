@@ -385,6 +385,31 @@ EOF
     echo "  Shortcut: $desktop_file"
 }
 
+install_browser_policies() {
+    local policy_dir
+    local policy_file
+
+    # Managed policy dirs for Google Chrome, Debian Chromium, and Ubuntu/snap Chromium.
+    for policy_dir in \
+        /etc/opt/chrome/policies/managed \
+        /etc/chromium/policies/managed \
+        /etc/chromium-browser/policies/managed; do
+        policy_file="${policy_dir}/machine-ui-kiosk.json"
+        install -d -m 755 "$policy_dir"
+        cat >"$policy_file" <<'EOF'
+{
+  "PasswordManagerEnabled": false,
+  "PasswordLeakDetectionEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false
+}
+EOF
+        chmod 644 "$policy_file"
+    done
+
+    echo "Installed browser policies disabling the password manager and autofill"
+}
+
 main() {
     parse_args "$@"
     require_root
@@ -400,6 +425,7 @@ main() {
     validate_inputs
     configure_hosts_alias
     import_caddy_root_certificate
+    install_browser_policies
     install_autostart_entry
     install_desktop_shortcut
 }

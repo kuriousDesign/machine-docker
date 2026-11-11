@@ -652,6 +652,31 @@ import_caddy_root_certificate() {
     fi
 }
 
+install_browser_policies() {
+    local policy_dir
+    local policy_file
+
+    # Managed policy dirs for Google Chrome, Debian Chromium, and Ubuntu/snap Chromium.
+    for policy_dir in \
+        /etc/opt/chrome/policies/managed \
+        /etc/chromium/policies/managed \
+        /etc/chromium-browser/policies/managed; do
+        policy_file="${policy_dir}/machine-ui-kiosk.json"
+        install -d -m 755 "$policy_dir"
+        cat >"$policy_file" <<'EOF'
+{
+  "PasswordManagerEnabled": false,
+  "PasswordLeakDetectionEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false
+}
+EOF
+        chmod 644 "$policy_file"
+    done
+
+    echo "Installed browser policies disabling the password manager and autofill"
+}
+
 restart_display_manager() {
     if systemctl is-active --quiet lightdm; then
         systemctl restart lightdm
@@ -774,6 +799,7 @@ main() {
     purge_conflicting_display_managers
     configure_openbox_autostart
     import_caddy_root_certificate
+    install_browser_policies
     restart_display_manager
     verify_setup
 }
